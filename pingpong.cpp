@@ -279,7 +279,9 @@ int main(int argc, char* argv[])
 #endif
   switch (mode) {
   case 0: {
+#if VERBOSE
     printf("pair mode\n");
+#endif
     stats pair_mode = pair(t1, t2);
     break;
   }
