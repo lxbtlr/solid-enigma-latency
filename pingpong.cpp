@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 /*
  * thread to thread latency test.
  * Times collected should be the combination of trip to thread, write to data,
@@ -15,9 +16,8 @@
  * 1. do this first using c constructs (types etc)
  * 2. do this again using inline assembly
  */
-
 #define VERBOSE 0
-#define NUM_ITERS 10000
+#define NUM_ITERS 100
 #define INT_MAX 0x7fffffff
 #define INT_MIN 0
 
@@ -44,6 +44,8 @@
     }                                                            \
     val = sum;                                                   \
   } while (0)
+
+FILE* f = fopen("test.out", "w");
 
 struct stats {
   // min, max, aavg, gavg
@@ -211,7 +213,6 @@ stats tournament(const long prima, const int beg, const int last)
   for (int i = beg; i <= last; i++) {
     if (i == prima) {
       // TODO:[x] catch case where we are playing ping pong with our self
-      // printf("same thread\n");
     } else {
       pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
 
@@ -230,11 +231,7 @@ stats tournament(const long prima, const int beg, const int last)
       }
       SUM(aavg, pdata);
 
-#if VERBOSE
-      fprintf(stderr, "L: %lu, %lu, %lu, %lu,%u\n", prima, lmin, lmax, aavg, NUM_ITERS);
-#endif
-      // TODO: implement this if we want the distribution otherwise look at global sol:
-      // all_data[i] = pair;
+      fprintf(f, "l,%lu,%i,%lu,%lu,%lu,\n", prima, i, lmin, lmax, aavg);
 
       gmin = MIN(gmin, lmin);
       gmax = MAX(gmax, lmax);
@@ -248,9 +245,9 @@ stats tournament(const long prima, const int beg, const int last)
     .aavg = gaavg,
   };
 #if VERBOSE
-  printf("min: %lu\nmax: %lu\naavg: %lu\n", gstats.min, gstats.max, gstats.aavg);
-#endif
   printf("%lu, %lu, %lu, %lu, %i\n", prima, gstats.min, gstats.max, gstats.aavg, NUM_ITERS);
+#endif
+  fprintf(f, "g,%lu,%lu,%lu,%lu,%i\n", prima, gstats.min, gstats.max, gstats.aavg, NUM_ITERS);
   return gstats;
 }
 
@@ -258,10 +255,10 @@ int main(int argc, char* argv[])
 {
   int mode;
   long t1, t2;
-
+  // fflush(stdout);
   if (argc != 5) {
     // TODO: bake modes into this (thread pairs vs thread sweeps)
-    fprintf(stderr, "usage: pingpong thread_1 thread_2 Avoid_HT Mode\n");
+    printf("usage: pingpong thread_1 thread_2 Avoid_HT Mode\n");
     exit(-1);
   }
   t1 = atoi(argv[1]);       // thread 1
@@ -269,11 +266,9 @@ int main(int argc, char* argv[])
   AVOID_HT = atoi(argv[3]); // avoid hyperthreading?
   mode = atoi(argv[4]);     // op mode
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2 /*num threads */);
-
-  printf("tid, min, max, aavg,NUM_ITERS,\n");
-
-  // malloc the data array
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * (t2 - t1) /*num threads */);
+  // pthread_t tid[t2];
+  //  malloc the data array
 #if VERBOSE
   printf("Start Tests\n");
 #endif
@@ -282,6 +277,7 @@ int main(int argc, char* argv[])
 #if VERBOSE
     printf("pair mode\n");
 #endif
+    printf("tid,min,max,aavg,NUM_ITERS,\n");
     stats pair_mode = pair(t1, t2);
     break;
   }
@@ -289,6 +285,11 @@ int main(int argc, char* argv[])
 #if VERBOSE
     printf("Tournament mode\n");
 #endif
+    // NOTE: THIS ONE
+    // fprintf(f, "stat,tid,tid,min,max,aavg,\n");
+
+    // FIXME:
+    fprintf(f, "stat,tid,tid,min,max,aavg,\n");
     heatmap = (stats*)malloc(sizeof(stats) * (t2 - t1) /*num threads */);
     for (int thread_num = t1; thread_num <= t2; thread_num++) {
       heatmap[thread_num] = tournament(thread_num, t1, t2);
@@ -300,4 +301,5 @@ int main(int argc, char* argv[])
     fprintf(stderr, "\t\t\t\t\t^^Mode not Mapped\n");
   }
   }
+  // fclose(f);
 }
