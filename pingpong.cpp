@@ -1,7 +1,3 @@
-#include <atomic>
-#include <bitset>
-#include <iostream>
-#include <limits>
 #include <math.h>
 #include <pthread.h> // pthread api
 #include <sched.h>   // for processor affinity
@@ -17,7 +13,7 @@
  * 2. do this again using inline assembly
  */
 #define VERBOSE 0
-#define NUM_ITERS 100
+#define NUM_ITERS 1000
 #define INT_MAX 0x7fffffff
 #define INT_MIN 0
 
@@ -33,8 +29,8 @@
     val = tsc;                                \
   } while (0)
 
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
+#define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 
 #define SUM(val, _data)                                          \
   do {                                                           \
@@ -286,10 +282,10 @@ int main(int argc, char* argv[])
     printf("Tournament mode\n");
 #endif
     // NOTE: THIS ONE
-    // fprintf(f, "stat,tid,tid,min,max,aavg,\n");
+    // fprintf(f, "stat,t1,t2,min,max,aavg,\n");
 
     // FIXME:
-    fprintf(f, "stat,tid,tid,min,max,aavg,\n");
+    fprintf(f, "stat,t1,t2,min,max,aavg,\n");
     heatmap = (stats*)malloc(sizeof(stats) * (t2 - t1) /*num threads */);
     for (int thread_num = t1; thread_num <= t2; thread_num++) {
       heatmap[thread_num] = tournament(thread_num, t1, t2);
