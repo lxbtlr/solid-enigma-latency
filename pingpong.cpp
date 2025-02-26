@@ -48,7 +48,7 @@ FILE* f = fopen("test.out", "w");
 struct sharedm { // thank you kevin for the more cogent solution to this
   uint64_t tid;
   uint64_t cpu;
-  uint64_t* read_addr; // TODO: double check if we need volatile flags here
+  uint64_t* read_addr;
   uint64_t* write_addr;
 };
 
