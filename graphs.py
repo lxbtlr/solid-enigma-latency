@@ -77,14 +77,13 @@ def heatmap(input_data):
    t4 xx xx xx XX
 
     """
-    print(input_data)
     _data = input_data.pivot(index="t1",
                              columns="t2",
                              values="min").fillna(0)
-    print(_data)
     f, ax = mpl.subplots(figsize=(9, 6))
-    print("hello")
-    seaborn.heatmap(_data, ax=ax,)
+    ax.set_title(f"{args.title}")
+    g = seaborn.heatmap(_data, ax=ax,fmt="d", xticklabels=True, yticklabels=True)
+    g.set_xticklabels(ax.get_xticklabels(), rotation=0)
     mpl.show()
     pass
 

@@ -78,6 +78,10 @@ struct sharedm { // thank you kevin for the more cogent solution to this
     .write_addr = (uint64_t*)volley,     \
   };
 
+#define memrst(data)                  \
+  memset(data.write_addr, 0, 0x1000); \
+  memset(data.read_addr, 0, 0x1000);
+
 struct stats {
   // min, max, aavg, gavg
   uint64_t min;
@@ -95,11 +99,11 @@ long* pair_data;
 // need volatile to prevent compiler interfering
 volatile int shared_mem = 0;
 
-void memrst(sharedm data)
-{
-  memset(data.write_addr, 0, 0x1000);
-  memset(data.read_addr, 0, 0x1000);
-}
+// void memrst(sharedm data)
+//{
+//   memset(data.write_addr, 0, 0x1000);
+//   memset(data.read_addr, 0, 0x1000);
+// }
 
 void* ping(void* input)
 {
