@@ -80,10 +80,11 @@ def heatmap(input_data):
     _data = input_data.pivot(index="t1",
                              columns="t2",
                              values="min").fillna(0)
-    f, ax = mpl.subplots(figsize=(9, 6))
+    _f, ax = mpl.subplots(figsize=(9, 6))
     ax.set_title(f"{args.title}")
     g = seaborn.heatmap(_data, ax=ax,fmt="d", xticklabels=True, yticklabels=True)
     g.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    g.invert_yaxis()
     mpl.show()
     pass
 

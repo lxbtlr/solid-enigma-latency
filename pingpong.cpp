@@ -52,36 +52,6 @@ struct sharedm { // thank you kevin for the more cogent solution to this
   uint64_t* write_addr;
 };
 
-#define mk_shared_data(thread1, thread2) \
-  void* serve = mmap(NULL, 0x1000,       \
-      PROT_READ | PROT_WRITE,            \
-      MAP_SHARED | MAP_ANONYMOUS,        \
-      0, 0);                             \
-                                         \
-  memset(serve, 0, 0x1000);              \
-                                         \
-  void* volley = mmap(NULL, 0x1000,      \
-      PROT_READ | PROT_WRITE,            \
-      MAP_SHARED | MAP_ANONYMOUS,        \
-      0, 0);                             \
-  memset(volley, 0, 0x1000);             \
-  struct sharedm t1 {                    \
-    .tid = tid[thread1],                 \
-    .cpu = thread1,                      \
-    .read_addr = (uint64_t*)volley,      \
-    .write_addr = (uint64_t*)serve,      \
-  };                                     \
-  struct sharedm t2 {                    \
-    .tid = tid[thread2],                 \
-    .cpu = thread2,                      \
-    .read_addr = (uint64_t*)serve,       \
-    .write_addr = (uint64_t*)volley,     \
-  };
-
-#define memrst(data)                  \
-  memset(data.write_addr, 0, 0x1000); \
-  memset(data.read_addr, 0, 0x1000);
-
 struct stats {
   // min, max, aavg, gavg
   uint64_t min;
@@ -99,11 +69,37 @@ long* pair_data;
 // need volatile to prevent compiler interfering
 volatile int shared_mem = 0;
 
-// void memrst(sharedm data)
-//{
-//   memset(data.write_addr, 0, 0x1000);
-//   memset(data.read_addr, 0, 0x1000);
-// }
+void memrst(sharedm* data)
+{
+  memset(data->write_addr, 0, 0x1000);
+  memset(data->read_addr, 0, 0x1000);
+}
+
+void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1, const uint64_t thread2)
+{
+  void* serve = mmap(NULL, 0x1000,
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS,
+      0, 0);
+
+  memset(serve, 0, 0x1000);
+
+  void* volley = mmap(NULL, 0x1000,
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS,
+      0, 0);
+  memset(volley, 0, 0x1000);
+
+  t1->tid = tid[thread1];
+  t1->cpu = thread1;
+  t1->read_addr = (uint64_t*)volley;
+  t1->write_addr = (uint64_t*)serve;
+
+  t2->tid = tid[thread2];
+  t2->cpu = thread2;
+  t2->read_addr = (uint64_t*)serve;
+  t2->write_addr = (uint64_t*)volley;
+}
 
 void* ping(void* input)
 {
@@ -196,12 +192,13 @@ long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
   }
 #endif
   // rejoin threads
+  // pthread_join(thread1.tid, NULL);
   pthread_join(thread2.tid, &time);
 #if VERBOSE
   printf("[INFO] PING joined correct\n");
 #endif
 
-  memrst(thread1);
+  memrst(&thread1);
   return (long)time;
 }
 
@@ -212,10 +209,11 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
   uint64_t lmin = INT_MAX;
   uint64_t lmax = INT_MIN;
   uint64_t aavg;
+  struct sharedm t1, t2;
 
   tid = (pthread_t*)malloc(sizeof(pthread_t) * (2) /*num threads */);
 
-  mk_shared_data(thread1, thread2);
+  mk_sharedms(&t1, &t2, thread1, thread2);
 
   pair_data = (long*)malloc(sizeof(long) * NUM_ITERS);
 
@@ -270,7 +268,10 @@ stats tournament(const uint64_t prima, const int beg, const int last)
     } else {
       pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
 
-      mk_shared_data(prima, i);
+      struct sharedm t1, t2;
+
+      mk_sharedms(&t1, &t2, prima, i);
+
       uint64_t lmin = INT_MAX;
       uint64_t lmax = INT_MIN;
       uint64_t aavg;
@@ -341,9 +342,10 @@ int main(int argc, char* argv[])
     printf("Tournament mode\n");
 #endif
     fprintf(f, "stat,t1,t2,min,max,aavg,\n");
-    heatmap = (stats*)malloc(sizeof(stats) * (t2 - t1) /*num threads */);
-    for (int thread_num = t1; thread_num <= t2; thread_num++) {
-      heatmap[thread_num] = tournament(thread_num, t1, t2);
+    heatmap = (stats*)malloc(sizeof(stats) * ((t2 + 1) - t1) /*num threads */);
+    for (int thread_num = t1, counter = 0; thread_num <= t2; thread_num++, counter++) {
+      printf("now testing p:%i\n", thread_num);
+      heatmap[counter] = tournament(thread_num, t1, t2);
     }
     break;
   }
