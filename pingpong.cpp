@@ -125,6 +125,7 @@ void* ping(void* input)
   }
   rdtscll(end);
   //  NOTE: RESET VAL
+  *d->write_addr = 0;
 
   void* time = (void*)(end - start);
 
@@ -154,6 +155,11 @@ void* pong(void* input)
     // sit and wait
   }
   *d->write_addr = 1;
+
+  while (*d->read_addr == 1) {
+    // sit and wait
+  }
+  *d->write_addr = 0;
 
 #if VERBOSE
   fprintf(stderr, "[INFO] Exiting thread %lu\n", d->cpu);
