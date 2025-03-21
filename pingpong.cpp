@@ -1,3 +1,4 @@
+#include <climits>
 #include <cstdint>
 #include <math.h>
 #include <pthread.h> // pthread api
@@ -7,6 +8,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <vector>
 /*
  * thread to thread latency test.
  * Times collected should be the combination of trip to thread, write to data,
@@ -34,19 +36,10 @@
 #define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 #define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 
-#define SUM(val, _data)                                          \
-  do {                                                           \
-    uint64_t sum = 0;                                            \
-    for (int j = 0; j < (sizeof(_data) / sizeof(*_data)); j++) { \
-      sum += _data[j];                                           \
-    }                                                            \
-    val = sum;                                                   \
-  } while (0)
-
 FILE* f = fopen("test.out", "w");
 
 struct sharedm { // thank you kevin for the more cogent solution to this
-  uint64_t tid;
+  // pthread_t tid;
   uint64_t cpu;
   uint64_t* read_addr;
   uint64_t* write_addr;
@@ -62,12 +55,26 @@ struct stats {
 int NUM_THREADS;
 int AVOID_HT;
 
-stats* heatmap;
-pthread_t* tid;
-long* pdata;
-long* pair_data;
+// stats* heatmap;
+std::vector<stats> heatmap;
+// pthread_t* tid;
+// std::vector<pthread_t> tid(2);
+// long* pdata;
+std::vector<long> pdata(NUM_ITERS);
+// long* pair_data;
+// std::vector<long> pair_data[NUM_ITERS];
 // need volatile to prevent compiler interfering
-volatile int shared_mem = 0;
+
+void v_avg(uint64_t* output, std::vector<long> input_vec)
+{
+
+  uint64_t total = 0;
+  uint64_t length = input_vec.size();
+  for (uint64_t i = 0; i < length; i++) {
+    total += input_vec[i];
+  }
+  *output = total;
+}
 
 void memrst(sharedm* data)
 {
@@ -90,18 +97,18 @@ void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1, const uint64_
       0, 0);
   memset(volley, 0, 0x1000);
 
-  t1->tid = tid[thread1];
+  // t1->tid = tid[thread1];
   t1->cpu = thread1;
   t1->read_addr = (uint64_t*)volley;
   t1->write_addr = (uint64_t*)serve;
 
-  t2->tid = tid[thread2];
+  // t2->tid = tid[thread2];
   t2->cpu = thread2;
   t2->read_addr = (uint64_t*)serve;
   t2->write_addr = (uint64_t*)volley;
 }
 
-void* ping(void* input)
+static void* ping(void* input)
 {
 
   struct sharedm* d = (sharedm*)input;
@@ -115,17 +122,20 @@ void* ping(void* input)
     exit(-1);
   }
 
+  // printf("[INFO] PING af set\n");
   uint64_t start, end;
   // should start the clock and write to data in memory
   rdtscll(start);
 
-  *d->write_addr = 1;          // serve ball
+  *d->write_addr = 1; // serve ball
+  // printf("[INFO] PING writes\n");
   while (*d->read_addr == 0) { // wait for return
     // sit and wait
+    // printf("[INFO] PING waiting\n");
   }
   rdtscll(end);
-  //  NOTE: RESET VAL
-  *d->write_addr = 0;
+  // printf("[INFO] PING reads\n");
+  //   NOTE: RESET VAL
 
   void* time = (void*)(end - start);
 
@@ -137,7 +147,7 @@ void* ping(void* input)
   pthread_exit((void*)time);
 }
 
-void* pong(void* input)
+static void* pong(void* input)
 {
   // Receiver Thread
   struct sharedm* d = (sharedm*)input;
@@ -149,17 +159,16 @@ void* pong(void* input)
     perror("Can't setaffinity");
     exit(-1);
   }
+  // printf("[INFO] PONG af set\n");
 
   // should observe the change in memory,
   while (*d->read_addr == 0) {
     // sit and wait
+    // printf("[INFO] PONG waiting\n");
   }
+  // printf("[INFO] PONG reads\n");
   *d->write_addr = 1;
-
-  while (*d->read_addr == 1) {
-    // sit and wait
-  }
-  *d->write_addr = 0;
+  // printf("[INFO] PONG write\n");
 
 #if VERBOSE
   fprintf(stderr, "[INFO] Exiting thread %lu\n", d->cpu);
@@ -167,16 +176,149 @@ void* pong(void* input)
   // then exit
   pthread_exit(NULL);
 }
+// TODO: take in two cpus  and shared mem
 
-long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
+struct passes {
+  uint64_t player1;
+  uint64_t player2;
+  uint64_t* first;
+  uint64_t* second;
+};
+
+void* ping2(void* _g)
 {
+  struct passes* g = (passes*)_g;
+  // long t_id = (long)input;
+  cpu_set_t set;
+  CPU_ZERO(&set);
+  // printf("ping:\t%lu\n", d->cpu);
+  CPU_SET(g->player1, &set);
+  if (sched_setaffinity(0, sizeof(set), &set) < 0) {
+    perror("Can't setaffinity");
+    exit(-1);
+  }
+
+  uint64_t start, end;
+  // should start the clock and write to data in memory
+  rdtscll(start);
+
+  *g->first = 1;            // serve ball
+  while (*g->second == 0) { // wait for return
+    // sit and wait
+    // printf("ping wait\n");
+  }
+  rdtscll(end);
+  *g->first = 0; // serve ball
+
+  void* time = (void*)(end - start);
+
+  pthread_exit((void*)time);
+}
+void* pong2(void* _g)
+{
+  struct passes* g = (passes*)_g;
+  cpu_set_t set;
+  CPU_ZERO(&set);
+  CPU_SET(g->player2, &set);
+  if (sched_setaffinity(0, sizeof(set), &set) < 0) {
+    perror("Can't setaffinity");
+    exit(-1);
+  }
+  // should observe the change in memory,
+  while (*g->first == 0) {
+    // sit and wait
+    // printf("pong wait\n");
+  }
+  *g->second = 1;
+
+#if VERBOSE
+  fprintf(stderr, "[INFO] Exiting thread %lu\n", g->player2);
+#endif
+
+  while (*g->first != 0) { }
+  *g->second = 0; // serve ball
+  pthread_exit(NULL);
+}
+
+long second_option(uint64_t cpu1, uint64_t cpu2)
+{
+
   void* time;
+  pthread_t* tid;
+
+  void* serve = mmap(NULL, 0x1000,
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS,
+      0, 0);
+
+  memset(serve, 0, 0x1000);
+
+  void* volley = mmap(NULL, 0x1000,
+      PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS,
+      0, 0);
+  memset(volley, 0, 0x1000);
+
+  struct passes game {
+    .player1 = cpu1,
+    .player2 = cpu2,
+    .first = (uint64_t*)serve,
+    .second = (uint64_t*)volley,
+  };
+
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2);
+
   // Set up the threads
   long start_condition;
 #if VERBOSE
   printf("Start threads\n");
 #endif
-  start_condition = pthread_create(&(thread1.tid),
+  // player 1
+  start_condition = pthread_create(&tid[0],
+      NULL,
+      pong2,
+      (void*)&game);
+
+#if VERBOSE
+  if (start_condition == 0) {
+    printf("[INFO] PONG started correct\n");
+  }
+#endif
+
+  // player 2
+  start_condition = pthread_create(&tid[1],
+      NULL,
+      ping2,
+      (void*)&game);
+
+#if VERBOSE
+  if (start_condition == 0) {
+    printf("[INFO] PING started correct\n");
+  }
+#endif
+  pthread_join(tid[0], NULL);
+  pthread_join(tid[1], &time);
+
+  //*game.first = 0;
+  //*game.second = 0;
+  munmap(serve,0x1000);
+  munmap(volley,0x1000);
+  return (long)time;
+}
+
+long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
+{
+  void* time;
+  pthread_t* tid;
+
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2);
+
+  // Set up the threads
+  long start_condition;
+#if VERBOSE
+  printf("Start threads\n");
+#endif
+  start_condition = pthread_create(&tid[0],
       NULL,
       pong,
       (void*)&thread1);
@@ -187,7 +329,7 @@ long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
   }
 #endif
 
-  start_condition = pthread_create(&(thread2.tid),
+  start_condition = pthread_create(&tid[1],
       NULL,
       ping,
       (void*)&thread2);
@@ -198,8 +340,10 @@ long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
   }
 #endif
   // rejoin threads
-  // pthread_join(thread1.tid, NULL);
-  pthread_join(thread2.tid, &time);
+  // pthread_join(tid[0], NULL);
+  // printf("[INFO] PONG joined correct\n");
+  // pthread_join(tid[0], NULL);
+  pthread_join(tid[1], &time);
 #if VERBOSE
   printf("[INFO] PING joined correct\n");
 #endif
@@ -217,17 +361,21 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
   uint64_t aavg;
   struct sharedm t1, t2;
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t) * (2) /*num threads */);
+  // std::vector<pthread_t> tid(2);
+
+  // tid = (pthread_t*)malloc(sizeof(pthread_t) * (2) /*num threads */);
 
   mk_sharedms(&t1, &t2, thread1, thread2);
 
-  pair_data = (long*)malloc(sizeof(long) * NUM_ITERS);
+  // pair_data = (long*)malloc(sizeof(long) * NUM_ITERS);
 
   for (i = 0; i < NUM_ITERS; i++) {
-    long current = (long)set_pingpong(t1, t2);
+    // long current = (long)set_pingpong(t1, t2);
+    printf("%lu\n", i);
+    long current = (long)second_option(thread1, thread2);
     lmin = MIN(lmin, current);
     lmax = MAX(lmax, current);
-    pair_data[i] = current;
+    pdata.at(i) = current;
 #if VERBOSE
     printf("iter: %li complete\n", i);
 #endif
@@ -236,7 +384,7 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
 #if VERBOSE
   printf("Calc stats\n");
 #endif
-  SUM(aavg, pair_data);
+  v_avg(&aavg, pdata);
   stats single = {
     .min = lmin,
     .max = lmax,
@@ -249,7 +397,7 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
   return single;
 }
 
-stats tournament(const uint64_t prima, const int beg, const int last)
+stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
 {
   // Ping Pong Thread Tournament,
   // Generate the min and avg scores from ping pong test of one thread to all
@@ -266,33 +414,38 @@ stats tournament(const uint64_t prima, const int beg, const int last)
   uint64_t gmax = INT_MIN;
   uint64_t gaavg = 0;
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t) * (last - beg) /*num threads */);
-  // NOTE: sweep from first thread to last thread, excluding primary thread
+  struct sharedm t1, t2;
+  mk_sharedms(&t1, &t2, prima, prima);
+  // std::vector<pthread_t> tid(last - beg);
+  //   NOTE: sweep from first thread to last thread, excluding primary thread
+  std::vector<long> tour(NUM_ITERS,0);
   for (uint64_t i = beg; i <= last; i++) {
     if (i == prima) {
       // TODO:[x] catch case where we are playing ping pong with our self
+      std::fill(tour.begin(), tour.end(), 0);
     } else {
-      pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
+      // pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
+      printf("now testing i:%lu\n", i);
+      t2.cpu = i;
+      //printf("mksharedms complete\n");
 
-      struct sharedm t1, t2;
-
-      mk_sharedms(&t1, &t2, prima, i);
-
+      printf("mkshared, %lu\n", t2.cpu);
       uint64_t lmin = INT_MAX;
       uint64_t lmax = INT_MIN;
       uint64_t aavg;
 
       for (int j = 0; j < NUM_ITERS; j++) {
-        long current = (long)set_pingpong(t1, t2);
-        lmin = MIN(lmin, current);
-        lmax = MAX(lmax, current);
-        pdata[j] = current;
+        // long current
+        tour[j] = second_option(prima, i);
+        lmin = MIN(lmin, tour[j]);
+        lmax = MAX(lmax, tour[j]);
+        // tour[j] = current;
+
 #if VERBOSE
-        printf("iter: %i complete\n", i);
+        printf("iter: %lu complete\n", i);
 #endif
       }
-      SUM(aavg, pdata);
-
+      v_avg(&aavg, tour);
       fprintf(f, "l,%lu,%li,%lu,%lu,%lu,\n", prima, i, lmin, lmax, aavg);
 
       gmin = MIN(gmin, lmin);
@@ -316,15 +469,15 @@ stats tournament(const uint64_t prima, const int beg, const int last)
 int main(int argc, char* argv[])
 {
   int mode;
-  long t1, t2;
+  // long t1, t2;
 
   if (argc != 4) {
     // TODO: bake modes into this (thread pairs vs thread sweeps)
     printf("usage: pingpong thread_1 thread_2 Mode\n");
     exit(-1);
   }
-  t1 = atoi(argv[1]); // thread 1
-  t2 = atoi(argv[2]); // thread 2
+  long t1 = (uint64_t)atol(argv[1]); // thread 1
+  long t2 = (uint64_t)atol(argv[2]); // thread 2
   // AVOID_HT = atoi(argv[3]); // avoid hyperthreading?
   mode = atoi(argv[3]); // op mode
 
@@ -348,10 +501,12 @@ int main(int argc, char* argv[])
     printf("Tournament mode\n");
 #endif
     fprintf(f, "stat,t1,t2,min,max,aavg,\n");
-    heatmap = (stats*)malloc(sizeof(stats) * ((t2 + 1) - t1) /*num threads */);
-    for (int thread_num = t1, counter = 0; thread_num <= t2; thread_num++, counter++) {
-      printf("now testing p:%i\n", thread_num);
-      heatmap[counter] = tournament(thread_num, t1, t2);
+    // heatmap = (stats*)malloc(sizeof(stats) * (t2 - t1) /*num threads */);
+
+    // std::vector<pthread_t> tid(t2 - t1);
+    for (uint64_t thread_num = t1; thread_num <= t2; thread_num++) {
+      printf("now testing p:%lu\n", thread_num);
+      heatmap.push_back(tournament(thread_num, t1, t2));
     }
     break;
   }
