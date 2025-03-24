@@ -425,11 +425,15 @@ stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
       std::fill(tour.begin(), tour.end(), 0);
     } else {
       // pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
-      printf("now testing i:%lu\n", i);
+      
+#if VERBOSE
+        printf("now testing i:%lu\n", i);
+#endif      
       t2.cpu = i;
       //printf("mksharedms complete\n");
 
-      printf("mkshared, %lu\n", t2.cpu);
+      //printf("mkshared, %lu\n", t2.cpu);
+
       uint64_t lmin = INT_MAX;
       uint64_t lmax = INT_MIN;
       uint64_t aavg;
