@@ -18,8 +18,8 @@
  */
 #define VERBOSE 0
 #define NUM_ITERS 1000
-#define INT_MAX 0x7fffffff
-#define INT_MIN 0
+#define INT_MAX_TEMP 0x7fffffff
+#define INT_MIN_TEMP 0
 
 #define uchar_t uint8_t
 // Tim64_ter mechanism using rdtsc (?)
@@ -55,15 +55,8 @@ struct stats {
 int NUM_THREADS;
 int AVOID_HT;
 
-// stats* heatmap;
 std::vector<stats> heatmap;
-// pthread_t* tid;
-// std::vector<pthread_t> tid(2);
-// long* pdata;
 std::vector<long> pdata(NUM_ITERS);
-// long* pair_data;
-// std::vector<long> pair_data[NUM_ITERS];
-// need volatile to prevent compiler interfering
 
 void v_avg(uint64_t* output, std::vector<long> input_vec)
 {
@@ -112,11 +105,11 @@ static void* ping(void* input)
 {
 
   struct sharedm* d = (sharedm*)input;
-  // long t_id = (long)input;
+
   cpu_set_t set;
   CPU_ZERO(&set);
-  // printf("ping:\t%lu\n", d->cpu);
   CPU_SET(d->cpu, &set);
+
   if (sched_setaffinity(0, sizeof(set), &set) < 0) {
     perror("Can't setaffinity");
     exit(-1);
@@ -131,15 +124,11 @@ static void* ping(void* input)
   // printf("[INFO] PING writes\n");
   while (*d->read_addr == 0) { // wait for return
     // sit and wait
-    // printf("[INFO] PING waiting\n");
   }
   rdtscll(end);
   // printf("[INFO] PING reads\n");
-  //   NOTE: RESET VAL
 
   void* time = (void*)(end - start);
-
-  //  Sender Thread
 
 #if VERBOSE
   fprintf(stderr, "[INFO] Exiting thread %lu\n", d->cpu);
@@ -149,9 +138,8 @@ static void* ping(void* input)
 
 static void* pong(void* input)
 {
-  // Receiver Thread
+
   struct sharedm* d = (sharedm*)input;
-  // old system:
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(d->cpu, &set);
@@ -164,7 +152,6 @@ static void* pong(void* input)
   // should observe the change in memory,
   while (*d->read_addr == 0) {
     // sit and wait
-    // printf("[INFO] PONG waiting\n");
   }
   // printf("[INFO] PONG reads\n");
   *d->write_addr = 1;
@@ -188,7 +175,6 @@ struct passes {
 void* ping2(void* _g)
 {
   struct passes* g = (passes*)_g;
-  // long t_id = (long)input;
   cpu_set_t set;
   CPU_ZERO(&set);
   // printf("ping:\t%lu\n", d->cpu);
@@ -205,10 +191,9 @@ void* ping2(void* _g)
   *g->first = 1;            // serve ball
   while (*g->second == 0) { // wait for return
     // sit and wait
-    // printf("ping wait\n");
   }
   rdtscll(end);
-  *g->first = 0; // serve ball
+  *g->first = 0;
 
   void* time = (void*)(end - start);
 
@@ -227,7 +212,6 @@ void* pong2(void* _g)
   // should observe the change in memory,
   while (*g->first == 0) {
     // sit and wait
-    // printf("pong wait\n");
   }
   *g->second = 1;
 
@@ -236,7 +220,7 @@ void* pong2(void* _g)
 #endif
 
   while (*g->first != 0) { }
-  *g->second = 0; // serve ball
+  *g->second = 0;
   pthread_exit(NULL);
 }
 
@@ -266,7 +250,8 @@ long second_option(uint64_t cpu1, uint64_t cpu2)
     .second = (uint64_t*)volley,
   };
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2);
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2); // magic number justified,
+                                                   // only ever two threads spinning
 
   // Set up the threads
   long start_condition;
@@ -298,11 +283,10 @@ long second_option(uint64_t cpu1, uint64_t cpu2)
 #endif
   pthread_join(tid[0], NULL);
   pthread_join(tid[1], &time);
-
   //*game.first = 0;
   //*game.second = 0;
-  munmap(serve,0x1000);
-  munmap(volley,0x1000);
+  munmap(serve, 0x1000);
+  munmap(volley, 0x1000);
   return (long)time;
 }
 
@@ -355,25 +339,22 @@ long set_pingpong(sharedm thread1, sharedm thread2) //, int num_procs)
 stats pair(const uint64_t thread1, const uint64_t thread2)
 {
 
-  int i;
-  uint64_t lmin = INT_MAX;
-  uint64_t lmax = INT_MIN;
+  uint64_t i;
+  uint64_t lmin = INT_MAX_TEMP;
+  uint64_t lmax = INT_MIN_TEMP;
   uint64_t aavg;
   struct sharedm t1, t2;
 
-  // std::vector<pthread_t> tid(2);
-
-  // tid = (pthread_t*)malloc(sizeof(pthread_t) * (2) /*num threads */);
-
   mk_sharedms(&t1, &t2, thread1, thread2);
-
-  // pair_data = (long*)malloc(sizeof(long) * NUM_ITERS);
 
   for (i = 0; i < NUM_ITERS; i++) {
     // long current = (long)set_pingpong(t1, t2);
     printf("%lu\n", i);
     long current = (long)second_option(thread1, thread2);
     lmin = MIN(lmin, current);
+
+    printf("time: %lu\n", lmin);
+
     lmax = MAX(lmax, current);
     pdata.at(i) = current;
 #if VERBOSE
@@ -391,7 +372,6 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
     .aavg = aavg,
   };
 
-  // printf("latency:\t %lu clk cycles\n", (long)set_pingpong(t1, t2));
   printf("min: %lu\nmax: %lu\naavg: %lu\n", single.min, single.max, single.aavg);
 
   return single;
@@ -410,41 +390,31 @@ stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
 
   // FIXME: there will be a hole in the data array for the thread to itself pair,
   // be careful when generating stats for thread to all
-  uint64_t gmin = INT_MAX;
-  uint64_t gmax = INT_MIN;
+  uint64_t gmin = INT_MAX_TEMP;
+  uint64_t gmax = INT_MIN_TEMP;
   uint64_t gaavg = 0;
 
-  struct sharedm t1, t2;
-  mk_sharedms(&t1, &t2, prima, prima);
-  // std::vector<pthread_t> tid(last - beg);
-  //   NOTE: sweep from first thread to last thread, excluding primary thread
-  std::vector<long> tour(NUM_ITERS,0);
+  // struct sharedm t1, t2;
+  // mk_sharedms(&t1, &t2, prima, prima);
+  //    NOTE: sweep from first thread to last thread, excluding primary thread
+  std::vector<long> tour(NUM_ITERS, 0);
   for (uint64_t i = beg; i <= last; i++) {
     if (i == prima) {
       // TODO:[x] catch case where we are playing ping pong with our self
       std::fill(tour.begin(), tour.end(), 0);
     } else {
-      // pdata = (long*)malloc(sizeof(long) * NUM_ITERS);
-      
-#if VERBOSE
-        printf("now testing i:%lu\n", i);
-#endif      
-      t2.cpu = i;
-      //printf("mksharedms complete\n");
+      // printf("now testing i:%lu\n", i);
 
-      //printf("mkshared, %lu\n", t2.cpu);
-
-      uint64_t lmin = INT_MAX;
-      uint64_t lmax = INT_MIN;
+      uint64_t lmin = INT_MAX_TEMP;
+      uint64_t lmax = INT_MIN_TEMP;
       uint64_t aavg;
 
       for (int j = 0; j < NUM_ITERS; j++) {
-        // long current
         tour[j] = second_option(prima, i);
         lmin = MIN(lmin, tour[j]);
         lmax = MAX(lmax, tour[j]);
-        // tour[j] = current;
 
+        // printf("iter: %lu\tmin: %lu\n", i, lmin);
 #if VERBOSE
         printf("iter: %lu complete\n", i);
 #endif
@@ -466,7 +436,8 @@ stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
 #if VERBOSE
   printf("%lu, %lu, %lu, %lu, %i\n", prima, gstats.min, gstats.max, gstats.aavg, NUM_ITERS);
 #endif
-  fprintf(f, "g,%lu,%lu,%lu,%lu,%i\n", prima, gstats.min, gstats.max, gstats.aavg, NUM_ITERS);
+  // global unnecessary
+  // fprintf(f, "g,%lu,%lu,%lu,%lu,%i\n", prima, gstats.min, gstats.max, gstats.aavg, NUM_ITERS);
   return gstats;
 }
 
@@ -519,5 +490,4 @@ int main(int argc, char* argv[])
     fprintf(stderr, "\t\t\t\t\t^^Mode not Mapped\n");
   }
   }
-  // mlockall(MCL_CURRENT | MCL_FUTURE);
 }
