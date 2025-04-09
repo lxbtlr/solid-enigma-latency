@@ -4,7 +4,7 @@ import matplotlib.pyplot as mpl
 import argparse
 import seaborn
 from scipy.cluster import hierarchy 
-import networkx
+# import networkx
 
 from enum import Enum
 
@@ -77,13 +77,17 @@ def heatmap(input_data):
    t4 xx xx xx XX
 
     """
+    ticks_offset = 11
     _data = input_data.pivot(index="t1",
                              columns="t2",
                              values="min").fillna(0)
-    _f, ax = mpl.subplots(figsize=(9, 6))
+    _f, ax = mpl.subplots(figsize=(6, 6))
     ax.set_title(f"{args.title}")
+
+        
     g = seaborn.heatmap(_data, ax=ax,fmt="d", xticklabels=True, yticklabels=True)
-    g.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    g.set_xticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
+    g.set_yticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
     g.invert_yaxis()
     mpl.show()
     pass
