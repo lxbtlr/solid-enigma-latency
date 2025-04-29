@@ -21,6 +21,12 @@
 #define INT_MAX_TEMP 0x7fffffff
 #define INT_MIN_TEMP 0
 
+#define DBG "[INFO] "
+#define COLOR_BOLD_YELLOW "\e[1;33m"
+#define COLOR_BOLD_RED "\e[1;31m"
+#define COLOR_RESET "\e[0m"
+#define ALERT(str) COLOR_BOLD_RED str COLOR_RESET
+
 #define uchar_t uint8_t
 // Tim64_ter mechanism using rdtsc (?)
 #define rdtscll(val)                          \
@@ -349,12 +355,12 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
 
   for (i = 0; i < NUM_ITERS; i++) {
     // long current = (long)set_pingpong(t1, t2);
-    printf("%lu\n", i);
+    // printf("%lu\n", i);
     long current = (long)second_option(thread1, thread2);
     lmin = MIN(lmin, current);
 
-    printf("time: %lu\n", lmin);
-
+    // printf("time: %lu\n", lmin);
+    printf("%lu,%lu,%lu,%lu\n", thread1, thread2, i, lmin);
     lmax = MAX(lmax, current);
     pdata.at(i) = current;
 #if VERBOSE
@@ -372,7 +378,7 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
     .aavg = aavg,
   };
 
-  printf("min: %lu\nmax: %lu\naavg: %lu\n", single.min, single.max, single.aavg);
+  fprintf(stderr, DBG "min: %lu\nmax: %lu\naavg: %lu\n", single.min, single.max, single.aavg);
 
   return single;
 }
