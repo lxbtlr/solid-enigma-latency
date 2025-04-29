@@ -1,0 +1,301 @@
+#define _GNU_SOURCE
+#include <pthread.h> // pthread api
+#include <sched.h>   // for processor affinity
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h> // unix standard apis
+// #include <math.h>
+
+// make our barrier
+pthread_barrier_t barrier;
+
+#define VERBOSE 0
+#define SERVE_TALK 0
+#define VOLLEY_TALK 0
+
+#define uchar_t uint8_t
+
+#define PAGE_SIZE 0x4000
+
+#define DBG "[INFO] "
+#define COLOR_BOLD_YELLOW "\e[1;33m"
+#define COLOR_BOLD_RED "\e[1;31m"
+#define COLOR_RESET "\e[0m"
+#define ALERT(str) COLOR_BOLD_RED str COLOR_RESET
+
+#define NUM_TRIALS 100000
+uint64_t ntrials = NUM_TRIALS;
+
+#define PATCH_SIZE 8
+
+extern uint8_t gadget_start[];
+extern uint8_t gadget_entry[];
+extern uint8_t gadget_end[];
+
+extern uint8_t gadget_patch1[];
+extern uint8_t gadget_patch2[];
+
+size_t size_gadget()
+{
+  return (uintptr_t)gadget_end - (uintptr_t)gadget_start;
+}
+size_t entry_offset()
+{
+  return (uintptr_t)gadget_entry - (uintptr_t)gadget_start;
+}
+typedef struct {
+  void (*code)(void);
+  uint64_t* t1;
+  uint64_t* t2;
+  char patch1[PATCH_SIZE];
+  char patch2[PATCH_SIZE];
+} __attribute__((packed)) __attribute__((aligned(PAGE_SIZE))) gadget_t;
+
+gadget_t josh_gad;
+
+#define OFFSET(val) (uintptr_t) val - (uintptr_t)gadget_start
+// FIX: There ~MAY~ still be a race condition
+// look at gdb thread blocking detach on fork and follow ~fork child
+void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
+{
+  uint8_t* garbage = mmap(NULL, PAGE_SIZE,
+      PROT_READ | PROT_EXEC | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, // check this later
+      0, 0);
+  memcpy(garbage, gadget_start, size_gadget());
+  gadget->code = (void*)garbage;
+  gadget->t1 = t1;
+  gadget->t2 = t2;
+  memcpy(gadget->patch1, garbage + OFFSET(gadget_patch1), PATCH_SIZE);
+  memcpy(gadget->patch2, garbage + OFFSET(gadget_patch2), PATCH_SIZE);
+#if VERBOSE
+  fprintf(stderr, DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, garbage);
+  fprintf(stderr, DBG "gadget_start:\t0x%016x\n", gadget_start);
+  fprintf(stderr, DBG "\t\tdiff:\t0x%016x\n", entry_offset());
+  fprintf(stderr, DBG "gadget_entry:\t0x%016x\n", gadget_entry);
+  fprintf(stderr, DBG "\t\tdiff:\t0x%016x\n", gadget_end - gadget_entry);
+  fprintf(stderr, DBG "gadget_end:\t0x%016x\n", gadget_end);
+#endif
+}
+
+void gadget_dest(gadget_t* gadget)
+{
+  if (gadget && gadget != MAP_FAILED) {
+    munmap(gadget, PAGE_SIZE);
+  }
+}
+
+#define rdtscll(val)                          \
+  do {                                        \
+    uint64_t tsc;                             \
+    uint32_t a, d;                            \
+    asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
+    *(uint32_t*)&(tsc) = a;                   \
+    *(uint32_t*)(((uchar_t*)&tsc) + 4) = d;   \
+    val = tsc;                                \
+  } while (0)
+
+void hex_dump(const void* addr, size_t length, size_t target)
+{
+  const uint8_t* data = (const uint8_t*)addr;
+  size_t i, j;
+
+  for (i = 0; i < length; i += 32) {
+    printf("%08zx  ", i); // Print offset
+
+    // Print hex values
+    for (j = 0; j < 32; j++) {
+      if (i + j < length) {
+        if (i + j == target)
+          printf("\e[31m");
+        printf("%02x ", data[i + j]);
+        if (i + j == target)
+          printf("\e[0m");
+      } else {
+        printf("   ");
+      }
+    }
+    printf("|\n");
+  }
+}
+
+void* serve(void* arg)
+{
+  /*
+   * Based on the thread ID begin running the shared c array code snippet at a
+   *  different index (entry point)
+   * Thread 0 will be our stopclock
+   *
+   */
+  gadget_t* gadget = arg;
+  long myid = (long)*(gadget->t1);
+  // printf("%lu\n", myid);
+  uint64_t start;
+  uint64_t stop;
+  uint64_t offset = entry_offset();
+
+  // NOTE: set affinity to given thread
+  cpu_set_t set;
+  CPU_ZERO(&set);
+  CPU_SET(myid, &set);
+  if (sched_setaffinity(0, sizeof(set), &set) < 0) {
+    fprintf(stderr, "Can't setaffinity\tServe");
+    exit(-1);
+  }
+
+  // printf("%lu\n", offset);
+  // hex_dump(josh_gad.code, 0x100, offset);
+  //(void (*)(void))
+#if VERBOSE
+  fprintf(stderr, DBG "gadget_start+off:\t0x%016x\n", gadget_start + offset);
+  fprintf(stderr, DBG "gadget_code+off:\t0x%016x\n", gadget->code + offset);
+  fprintf(stderr, DBG ALERT("MYID") ":%lx\n", myid);
+#endif
+  uint64_t serve_counter = 0;
+  for (uint64_t i = 0; i < ntrials; i++, serve_counter++) {
+
+#if VERBOSE
+    printf("serve:" COLOR_BOLD_RED "%i\n" COLOR_RESET, i);
+#endif
+    rdtscll(start);
+    (gadget->code + offset)();
+    rdtscll(stop);
+#if SERVE_TALK
+    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("post test\n"));
+    hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
+#endif
+    // NOTE: change this back
+
+    //*(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch1)) = *(uint64_t*)gadget->patch1;
+    // memcpy(gadget->code + OFFSET(gadget_patch1), gadget->patch1, PATCH_SIZE);
+    pthread_barrier_wait(&barrier);
+    *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch1)) = *(uint64_t*)gadget->patch1;
+    memcpy(gadget->code + OFFSET(gadget_patch1), gadget->patch1, PATCH_SIZE);
+#if SERVE_TALK
+    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("fixed\n"));
+    hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
+#endif
+    printf("%lu,%lu,%lu,%lu\n", *gadget->t1, *gadget->t2, i, stop - start);
+  }
+
+  pthread_exit(NULL);
+}
+
+void* volley(void* arg)
+{
+  gadget_t* gadget = arg;
+  long myid = (long)*(gadget->t2);
+  // printf("%lu\n", myid);
+
+  cpu_set_t set;
+  CPU_ZERO(&set);
+  CPU_SET(myid, &set);
+  if (sched_setaffinity(0, sizeof(set), &set) < 0) {
+    fprintf(stderr, "Can't setaffinity\tVolley");
+    exit(-1);
+  }
+  uint64_t volley_counter = 0;
+  // add barrier here
+  for (uint64_t i = 0; i < ntrials; i++, volley_counter++) {
+#if VERBOSE
+    printf("volley:" COLOR_BOLD_RED "%i\n" COLOR_RESET, i);
+#endif
+    gadget->code();
+#if VOLLEY_TALK
+    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
+    hex_dump(gadget->code, 0x100, OFFSET(gadget_patch2));
+#endif
+#if VOLLEY_TALK
+    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("fixed\n"));
+    hex_dump(gadget->code, 0x100, OFFSET(gadget_patch2));
+#endif
+    //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2, PATCH_SIZE);
+    //  printf("volley: trial  %lu\n", i);
+    pthread_barrier_wait(&barrier);
+    *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
+  }
+
+  pthread_exit(NULL);
+}
+void pingpong(uint64_t thread1, uint64_t thread2)
+{
+
+  uint64_t beginning = thread1;
+  uint64_t ending = thread2;
+
+  pthread_t* tid;
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2); // magic number justified,
+  // NOTE: Beginning of first loop (through all threads)
+
+  for (uint64_t cthread_2 = beginning; cthread_2 <= ending; cthread_2++) {
+
+    for (uint64_t cthread_1 = beginning; cthread_1 <= ending; cthread_1++) {
+
+      if (cthread_2 == cthread_1)
+        continue;
+      gadget_init(&josh_gad, &cthread_1, &cthread_2);
+      // FIXME: option 2
+      // josh_gad.t1 = &cthread_1;
+      // josh_gad.t2 = &cthread_2;
+
+      int t1 = pthread_create(&tid[0],
+          NULL,
+          volley,
+          (void*)&josh_gad);
+
+      if (t1 == 1)
+        fprintf(stderr, "Thread1 did not start");
+
+      int t2 = pthread_create(&tid[1],
+          NULL,
+          serve,
+          (void*)&josh_gad);
+
+      if (t2 == 1)
+        fprintf(stderr, "Thread2 did not start");
+
+      pthread_join(tid[0], NULL);
+      pthread_join(tid[1], NULL);
+      // gadget_dest(&josh_gad);
+    }
+  }
+}
+#define NUM_THREADS 2
+int main()
+{
+  // TODO: add testing modes (tournament vs CPU2CPU)
+  uint64_t thread_1 = 0;
+  uint64_t thread_2 = 15;
+
+  if (pthread_barrier_init(&barrier, NULL, NUM_THREADS)) {
+    perror("Could not create a barrier");
+    return EXIT_FAILURE;
+  }
+
+  // gadget_init(&josh_gad, &thread_1, &thread_2);
+
+  // pthread_t* tid;
+  // tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
+
+  // int t1 = pthread_create(&tid[0],
+  //     NULL,
+  //     volley,
+  //     (void*)&josh_gad);
+
+  // int t2 = pthread_create(&tid[1],
+  //     NULL,
+  //     serve,
+  //     (void*)&josh_gad);
+
+  // pthread_join(tid[0], NULL);
+  // pthread_join(tid[1], NULL);
+
+  pingpong(thread_1, thread_2);
+
+  // destroy barrier once done
+  pthread_barrier_destroy(&barrier);
+  return 0;
+}
