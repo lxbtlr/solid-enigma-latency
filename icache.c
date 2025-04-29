@@ -1,14 +1,17 @@
 #define _GNU_SOURCE
 #include <pthread.h> // pthread api
 #include <sched.h>   // for processor affinity
+#include <setjmp.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <ucontext.h>
 #include <unistd.h> // unix standard apis
 // #include <math.h>
-
+//
 // make our barrier
 pthread_barrier_t barrier;
 
@@ -26,7 +29,8 @@ pthread_barrier_t barrier;
 #define COLOR_RESET "\e[0m"
 #define ALERT(str) COLOR_BOLD_RED str COLOR_RESET
 
-#define NUM_TRIALS 100000
+#define NUM_THREADS 2
+#define NUM_TRIALS 10000
 uint64_t ntrials = NUM_TRIALS;
 
 #define PATCH_SIZE 8
@@ -97,6 +101,25 @@ void gadget_dest(gadget_t* gadget)
     *(uint32_t*)(((uchar_t*)&tsc) + 4) = d;   \
     val = tsc;                                \
   } while (0)
+
+static sigjmp_buf jump_buf;
+
+void sigill_handler(int sig, siginfo_t* info, void* ucontext)
+{
+  fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET, info->si_addr);
+
+// Skip the illegal instruction by advancing the instruction pointer
+#if defined(__x86_64__)
+  ucontext_t* ctx = (ucontext_t*)ucontext;
+  // ctx->uc_mcontext.gregs[REG_RIP]; // may need to adjust size of instruction
+#elif defined(__aarch64__)
+  ucontext_t* ctx = (ucontext_t*)ucontext;
+  ctx->uc_mcontext.pc += 4; // ARM instructions are 4 bytes
+#else
+  // Use longjmp if you can't safely skip the instruction
+  siglongjmp(jump_buf, 1);
+#endif
+}
 
 void hex_dump(const void* addr, size_t length, size_t target)
 {
@@ -262,40 +285,82 @@ void pingpong(uint64_t thread1, uint64_t thread2)
       // gadget_dest(&josh_gad);
     }
   }
+  pthread_barrier_destroy(&barrier);
+  return;
 }
-#define NUM_THREADS 2
-int main()
+
+void cpu2cpu(uint64_t thread1, uint64_t thread2)
 {
+
+  gadget_init(&josh_gad, &thread1, &thread2);
+
+  pthread_t* tid;
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
+
+  int t1 = pthread_create(&tid[0],
+      NULL,
+      volley,
+      (void*)&josh_gad);
+
+  if (t1 == 1)
+    fprintf(stderr, "Thread1 did not start");
+
+  int t2 = pthread_create(&tid[1],
+      NULL,
+      serve,
+      (void*)&josh_gad);
+
+  if (t2 == 1)
+    fprintf(stderr, "Thread2 did not start");
+
+  pthread_join(tid[0], NULL);
+  pthread_join(tid[1], NULL);
+
+  // destroy barrier once done
+  pthread_barrier_destroy(&barrier);
+}
+
+int main(int argc, char* argv[])
+{
+  if (argc != 4) {
+    // TODO: bake modes into this (thread pairs vs thread sweeps)
+    printf("usage: late_icache thread_1 thread_2 Mode\n");
+    exit(-1);
+  }
+  struct sigaction sa;
+  sa.sa_sigaction = sigill_handler;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = SA_SIGINFO;
+  if (sigaction(SIGILL, &sa, NULL) == -1) {
+    perror("sigaction");
+    exit(EXIT_FAILURE);
+  }
+
+  uint64_t mode = (uint64_t)atol(argv[3]);     // op mode
+  uint64_t thread_1 = (uint64_t)atol(argv[1]); // thread 1
+  uint64_t thread_2 = (uint64_t)atol(argv[2]); // thread 2
+
   // TODO: add testing modes (tournament vs CPU2CPU)
-  uint64_t thread_1 = 0;
-  uint64_t thread_2 = 15;
 
   if (pthread_barrier_init(&barrier, NULL, NUM_THREADS)) {
     perror("Could not create a barrier");
     return EXIT_FAILURE;
   }
 
-  // gadget_init(&josh_gad, &thread_1, &thread_2);
+  printf("thread_1,thread_2,iter,time\n");
+  switch (mode) {
+  case 0:
+    cpu2cpu(thread_1, thread_2);
+    break;
+  case 1:
 
-  // pthread_t* tid;
-  // tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
+    pingpong(thread_1, thread_2);
+    break;
+  case 2:
+  default:
 
-  // int t1 = pthread_create(&tid[0],
-  //     NULL,
-  //     volley,
-  //     (void*)&josh_gad);
-
-  // int t2 = pthread_create(&tid[1],
-  //     NULL,
-  //     serve,
-  //     (void*)&josh_gad);
-
-  // pthread_join(tid[0], NULL);
-  // pthread_join(tid[1], NULL);
-
-  pingpong(thread_1, thread_2);
-
-  // destroy barrier once done
-  pthread_barrier_destroy(&barrier);
+    fprintf(stderr, "Mode not specified\n");
+    return 0;
+  }
   return 0;
 }
