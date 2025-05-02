@@ -28,6 +28,13 @@ parser.add_argument("-t","--title",help="graph title")
 
 # TODO: add missing args errors
 
+def rf(fname:str):
+    """
+    Read csv, and output local and globals df's
+    """
+    _df = pandas.read_csv(fname)
+    print(_df)
+    return _df
 
 
 def read_file(fname:str):
@@ -65,6 +72,9 @@ def kmeans(k,input_data):
     
     return k
 
+def p2p_means(df):
+    return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].mean().reset_index() 
+
 
 def heatmap(input_data):
     """
@@ -77,18 +87,46 @@ def heatmap(input_data):
    t4 xx xx xx XX
 
     """
+    
     ticks_offset = 11
-    _data = input_data.pivot(index="t1",
-                             columns="t2",
-                             values="min").fillna(0)
-    _f, ax = mpl.subplots(figsize=(6, 6))
+    _data = input_data.pivot(index=input_data.columns[0],
+                             columns=input_data.columns[1],
+                             values=input_data.columns[2]).fillna(0)
+    _f, ax = mpl.subplots(figsize=(10, 10))
     ax.set_title(f"{args.title}")
-
+   
+    interval = 44
         
-    g = seaborn.heatmap(_data, ax=ax,fmt="d", xticklabels=True, yticklabels=True)
+    g = seaborn.heatmap(_data, ax=ax,fmt=".1f", xticklabels=True, yticklabels=True,
+                        square=True, vmax=1600)
+                        #annot=numpy.round(_data, 1),
+                        #annot_kws={"size": 4, "color": "white"})
     g.set_xticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
     g.set_yticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
     g.invert_yaxis()
+
+    for i in range(interval, _data.shape[0], interval):
+        ax.axhline(i, color='white', lw=1.5)
+    for j in range(interval, _data.shape[1], interval):
+        ax.axvline(j, color='white', lw=1.5)
+    # Label each region
+    num_rows = _data.shape[0]
+    num_cols = _data.shape[1]
+
+    for row_start in range(0, num_rows, interval):
+        for col_start in range(0, num_cols, interval):
+            row_end = min(row_start + interval, num_rows)
+            col_end = min(col_start + interval, num_cols)
+            center_y = (row_start + row_end) / 2
+            center_x = (col_start + col_end) / 2
+            label = "{},{}".format(row_start // interval, col_start // interval)
+            ax.text(center_x, center_y, label, color='white', ha='center', va='center',
+                    fontsize=10, weight='bold', bbox=dict(facecolor='black', alpha=0.5, boxstyle='round,pad=0.3'))
+
+
+
+
+    mpl.savefig(args.title + ".pdf", dpi=300)
     mpl.show()
     pass
 
@@ -97,10 +135,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
     graph = args.graph
 
-    globals_df, locals_df = read_file(args.filename)
+    #globals_df, locals_df = read_file(args.filename)
+    
+    data = rf(args.filename)
 
+    avgs_data = p2p_means(data)
+    max_thread = avgs_data["thread_1"].max()
+    sockets= 4
+    cores = 44
+    avgs_data["thread_1"] = ((avgs_data["thread_1"]%sockets) * cores) +(avgs_data["thread_1"]//sockets) 
+    avgs_data["thread_2"] = ((avgs_data["thread_2"]%sockets) * cores) +(avgs_data["thread_2"]//sockets) 
+    avgs_data["time"] = avgs_data["time"]
+
+
+    print(avgs_data)
     if int(graph) == Graph.heatmap.value:
-        heatmap(locals_df)
+        heatmap(avgs_data)
     elif graph == Graph.kmeans.value:
         pass
     elif graph == Graph.dendrite.value:
