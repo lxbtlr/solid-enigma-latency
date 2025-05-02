@@ -63,18 +63,14 @@ gadget_t josh_gad;
 #define OFFSET(val) (uintptr_t) val - (uintptr_t)gadget_start
 // FIX: There ~MAY~ still be a race condition
 // look at gdb thread blocking detach on fork and follow ~fork child
-void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
-{
-  uint8_t* garbage = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_EXEC | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS, // check this later
-      0, 0);
-  memcpy(garbage, gadget_start, size_gadget());
-  gadget->code = (void*)garbage;
+void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2){
+    // gadget must already be alloc'd by here
+  uint8_t* code = (uint8_t*)gadget->code;
+  memcpy(code, gadget_start, size_gadget());
   gadget->t1 = t1;
   gadget->t2 = t2;
-  memcpy(gadget->patch1, garbage + OFFSET(gadget_patch1), PATCH_SIZE);
-  memcpy(gadget->patch2, garbage + OFFSET(gadget_patch2), PATCH_SIZE);
+  memcpy(gadget->patch1, code + OFFSET(gadget_patch1), PATCH_SIZE);
+  memcpy(gadget->patch2, code + OFFSET(gadget_patch2), PATCH_SIZE);
 #if VERBOSE
   fprintf(stderr, DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, garbage);
   fprintf(stderr, DBG "gadget_start:\t0x%016x\n", gadget_start);
@@ -83,6 +79,19 @@ void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
   fprintf(stderr, DBG "\t\tdiff:\t0x%016x\n", gadget_end - gadget_entry);
   fprintf(stderr, DBG "gadget_end:\t0x%016x\n", gadget_end);
 #endif
+
+}
+
+
+void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
+{
+  
+    //memcpy(garbage, gadget_start, size_gadget());
+  gadget->code = mmap(NULL, PAGE_SIZE,
+      PROT_READ | PROT_EXEC | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, // check this later
+      0, 0);
+  gadget_rst( gadget, t1, t2  );
 }
 
 void gadget_dest(gadget_t* gadget)
@@ -107,6 +116,12 @@ static sigjmp_buf jump_buf;
 void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 {
   fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET, info->si_addr);
+  uint8_t* code = (uint8_t*) info->si_addr;
+  for (int i = 0; i< 8; i++){
+    fprintf(stderr,"%02x ", code[i]); 
+  }
+    fprintf(stderr,"\n"); 
+
 
 // Skip the illegal instruction by advancing the instruction pointer
 #if defined(__x86_64__)
@@ -252,18 +267,19 @@ void pingpong(uint64_t thread1, uint64_t thread2)
   pthread_t* tid;
   tid = (pthread_t*)malloc(sizeof(pthread_t) * 2); // magic number justified,
   // NOTE: Beginning of first loop (through all threads)
+uint64_t cthread_1, cthread_2;
 
-  for (uint64_t cthread_2 = beginning; cthread_2 <= ending; cthread_2++) {
+  gadget_init(&josh_gad, &cthread_1, &cthread_2);
+  for (cthread_2 = beginning; cthread_2 <= ending; cthread_2++) {
 
-    for (uint64_t cthread_1 = beginning; cthread_1 <= ending; cthread_1++) {
-
+    for (cthread_1 = beginning; cthread_1 <= ending; cthread_1++) {
+      
       if (cthread_2 == cthread_1)
         continue;
-      gadget_init(&josh_gad, &cthread_1, &cthread_2);
       // FIXME: option 2
       // josh_gad.t1 = &cthread_1;
       // josh_gad.t2 = &cthread_2;
-
+      gadget_rst(&josh_gad, &cthread_1, &cthread_2 );
       int t1 = pthread_create(&tid[0],
           NULL,
           volley,
