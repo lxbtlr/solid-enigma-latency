@@ -426,7 +426,7 @@ stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
 #endif
       }
       v_avg(&aavg, tour);
-      fprintf(f, "l,%lu,%li,%lu,%lu,%lu,\n", prima, i, lmin, lmax, aavg);
+      fprintf(f, "%lu,%li,%lu,%lu,%lu,\n", prima, i, lmin, lmax, aavg);
 
       gmin = MIN(gmin, lmin);
       gmax = MAX(gmax, lmax);
@@ -486,7 +486,7 @@ int main(int argc, char* argv[])
 
     // std::vector<pthread_t> tid(t2 - t1);
     for (uint64_t thread_num = t1; thread_num <= t2; thread_num++) {
-      printf("now testing p:%lu\n", thread_num);
+      fprintf(stderr, "now testing p:%lu\n", thread_num);
       heatmap.push_back(tournament(thread_num, t1, t2));
     }
     break;
