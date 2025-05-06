@@ -35,7 +35,7 @@ uint64_t ntrials = NUM_TRIALS;
 
 #define PATCH_SIZE 8
 
-#define FNAME "test.file"
+#define FNAME "icache_out.file"
 
 extern uint8_t gadget_start[];
 extern uint8_t gadget_entry[];
