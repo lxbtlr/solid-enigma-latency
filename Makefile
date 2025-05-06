@@ -3,25 +3,32 @@
 # Compiler and flags
 CC := gcc
 AS := gcc              # Use gcc for preprocessing .S files
-CFLAGS := -Wall -Wextra -O0 -g
+CFLAGS := -Wall -Wextra -O0 -g -lpthread
 
 # Project name (name of the final executable)
-TARGET := late_icache
+TARGETS := icache dcache
 
 # Sources
-C_SRCS := icache.c
-S_SRCS := garbage.S
-SRCS := $(C_SRCS) $(S_SRCS)
+icache_C_SRCS := icache.c
+icache_S_SRCS := garbage.S
+icache_SRCS := $(icache_C_SRCS) $(icache_S_SRCS)
+# Object files
+icache_OBJS := $(icache_SRCS:.c=.o)
+icache_OBJS := $(icache_OBJS:.S=.o)
+
+# Sources
+dcache_SRCS := dcache.c
 
 # Object files
-OBJS := $(SRCS:.c=.o)
-OBJS := $(OBJS:.S=.o)
+dcache_OBJS := $(dcache_SRCS:.c=.o)
 
-# Default target
-all: $(TARGET)
+all: $(TARGETS)
 
-# Link all object files to create the final executable
-$(TARGET): $(OBJS)
+# Build rules for each executable
+icache: $(icache_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+dcache: $(dcache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 # Compile C source files
@@ -34,7 +41,7 @@ $(TARGET): $(OBJS)
 
 # Clean build artifacts
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(icache_OBJS) $(dcache_OBJS) $(TARGETS)
 
 # Phony targets
 .PHONY: all clean

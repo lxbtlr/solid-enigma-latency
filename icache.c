@@ -310,16 +310,16 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
         fprintf(fd, "%lu,%lu,%lu,%lu\n", cthread_1, cthread_2, j, results[j]);
       }
       free(results);
-      // gadget_dest(&josh_gad);
     }
   }
+  gadget_dest(&josh_gad);
   pthread_barrier_destroy(&barrier);
   return;
 }
 
 void cpu2cpu(uint64_t thread1, uint64_t thread2)
 {
-
+  // TODO: use the array system in use for pingpong mode
   gadget_init(&josh_gad, &thread1, &thread2);
 
   pthread_t* tid;
@@ -367,8 +367,6 @@ int main(int argc, char* argv[])
   uint64_t mode = (uint64_t)atol(argv[3]);     // op mode
   uint64_t thread_1 = (uint64_t)atol(argv[1]); // thread 1
   uint64_t thread_2 = (uint64_t)atol(argv[2]); // thread 2
-
-  // TODO: add testing modes (tournament vs CPU2CPU)
 
   if (pthread_barrier_init(&barrier, NULL, NUM_THREADS)) {
     perror("Could not create a barrier");
