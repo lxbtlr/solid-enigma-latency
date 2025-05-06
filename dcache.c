@@ -192,7 +192,6 @@ void* pong2(void* _g)
 void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 {
 
-  fprintf(fd, "thread_1,thread_2,iter,time\n");
   uint64_t beginning = thread1;
   uint64_t ending = thread2;
 
@@ -269,6 +268,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       }
       free(results);
     }
+    // pthread_barrier_destroy(&barrier);
+    return;
   }
 
   //*game.first = 0;
@@ -366,6 +367,7 @@ int main(int argc, char* argv[])
 #if VERBOSE
   printf("Start Tests\n");
 #endif
+  fprintf(f, "thread_1,thread_2,iter,time\n");
   switch (mode) {
   case 0: {
 #if VERBOSE

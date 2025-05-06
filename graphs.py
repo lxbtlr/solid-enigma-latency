@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser(prog='Latency Graphs',
 parser.add_argument("filename",help="data file")
 parser.add_argument("-g","--graph",help="graph type [heatmap, kmeans, dendrites]")
 parser.add_argument("-t","--title",help="graph title")
+parser.add_argument("-n","--numa",help="# numa nodes (default=1)", default=None)
 #parser.add_argument("")
 
 
@@ -88,14 +89,26 @@ def heatmap(input_data):
 
     """
     
-    ticks_offset = 11
+    num_threads = input_data["thread_2"].max()+1
+    print(num_threads)
+    ticks_offset = 1
+    
+    # NOTE: adjust the tick offsets if there are more than 32 threads
+    if num_threads > 32:
+        ticks_offset = num_threads // 8
+
+    print(ticks_offset, args.numa)
     _data = input_data.pivot(index=input_data.columns[0],
                              columns=input_data.columns[1],
                              values=input_data.columns[2]).fillna(0)
+
     _f, ax = mpl.subplots(figsize=(10, 10))
-    ax.set_title(f"{args.title}")
-   
-    interval = 44
+    ax.set_title(f"{args.title}" + f"(NUMA:{args.numa})" if args.numa is not None else "" )
+    
+    interval = num_threads
+    if args.numa is not None: 
+        interval = num_threads // int(args.numa)   #44 ## FIXME: this should be using usr args 
+    print(f"Numa={args.numa}\tInterval={interval}")
         
     g = seaborn.heatmap(_data, ax=ax,fmt=".1f", xticklabels=True, yticklabels=True,
                         square=True, vmax=1600)
@@ -126,7 +139,7 @@ def heatmap(input_data):
 
 
 
-    mpl.savefig(args.title + ".pdf", dpi=300)
+    mpl.savefig("imgs/"+args.title + ".pdf", dpi=300)
     mpl.show()
     pass
 

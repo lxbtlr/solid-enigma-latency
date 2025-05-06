@@ -266,7 +266,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 {
   // output file
 
-  fprintf(fd, "thread_1,thread_2,iter,time\n");
+  // fprintf(fd, "thread_1,thread_2,iter,time\n");
   uint64_t beginning = thread1;
   uint64_t ending = thread2;
 
