@@ -18,7 +18,7 @@ pthread_barrier_t barrier;
 #define VERBOSE 0
 #define SERVE_TALK 0
 #define VOLLEY_TALK 0
-
+#define SIGHANDLER 1
 #define uchar_t uint8_t
 
 #define PAGE_SIZE 0x4000
@@ -112,8 +112,8 @@ void gadget_dest(gadget_t* gadget)
     val = tsc;                                \
   } while (0)
 
+#if !SIGHANDLER
 static sigjmp_buf jump_buf;
-
 void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 {
   fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET, info->si_addr);
@@ -135,6 +135,7 @@ void sigill_handler(int sig, siginfo_t* info, void* ucontext)
   siglongjmp(jump_buf, 1);
 #endif
 }
+#endif
 
 void hex_dump(const void* addr, size_t length, size_t target)
 {
@@ -355,6 +356,7 @@ int main(int argc, char* argv[])
     printf("usage: late_icache thread_1 thread_2 Mode\n");
     exit(-1);
   }
+#if !SIGHANDLER
   struct sigaction sa;
   sa.sa_sigaction = sigill_handler;
   sigemptyset(&sa.sa_mask);
@@ -363,7 +365,7 @@ int main(int argc, char* argv[])
     perror("sigaction");
     exit(EXIT_FAILURE);
   }
-
+#endif
   uint64_t mode = (uint64_t)atol(argv[3]);     // op mode
   uint64_t thread_1 = (uint64_t)atol(argv[1]); // thread 1
   uint64_t thread_2 = (uint64_t)atol(argv[2]); // thread 2

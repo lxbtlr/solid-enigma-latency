@@ -317,11 +317,9 @@ void pair(uint64_t cpu1, uint64_t cpu2)
       pong2,
       (void*)&game);
 
-#if VERBOSE
-  if (start_condition == 0) {
-    printf("[INFO] PONG started correct\n");
+  if (start_condition != 0) {
+    printf("[INFO] PONG started incorrect\n");
   }
-#endif
 
   // player 2
   start_condition = pthread_create(&tid[1],
@@ -329,11 +327,9 @@ void pair(uint64_t cpu1, uint64_t cpu2)
       ping2,
       (void*)&game);
 
-#if VERBOSE
-  if (start_condition == 0) {
-    printf("[INFO] PING started correct\n");
+  if (start_condition != 0) {
+    printf("[INFO] PING started incorrect\n");
   }
-#endif
   pthread_join(tid[0], NULL);
   pthread_join(tid[1], NULL);
   //*game.first = 0;
