@@ -107,7 +107,7 @@ typedef struct {
 void* ping2(void* _g)
 {
   passes* g = _g;
-  long myid = (long)*(g->player1);
+  long myid = (long)(g->player1);
 
   uint64_t* rec_times = malloc(sizeof(uint64_t) * ntrials);
 
@@ -235,7 +235,6 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
         continue;
       game.player1 = cthread_1;
       game.player2 = cthread_2;
-
 #if VERBOSE
       fprintf(stderr, "starting thread1\n");
 #endif
@@ -268,13 +267,13 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       free(results);
     }
     // pthread_barrier_destroy(&barrier);
-    return;
   }
 
   //*game.first = 0;
   //*game.second = 0;
   munmap(serve, 0x1000);
   munmap(volley, 0x1000);
+  return;
 }
 
 void pair(uint64_t cpu1, uint64_t cpu2)
@@ -372,6 +371,7 @@ int main(int argc, char* argv[])
     printf("pair mode\n");
 #endif
 
+    fprintf(stderr, DBG "starting pair\n");
     pair(t1, t2);
     break;
   }
@@ -380,6 +380,7 @@ int main(int argc, char* argv[])
     fprintf(stderr, DBG "starting pingpong\n");
 #endif
     // FIXME: HERE
+    fprintf(stderr, DBG "starting pingpong\n");
     pingpong(t1, t2, f);
     break;
   }
