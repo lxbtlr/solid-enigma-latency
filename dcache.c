@@ -44,6 +44,8 @@ uint64_t ntrials = NUM_TRIALS;
     val = tsc;                                \
   } while (0)
 
+#define FORCE_SERIAL __asm__ __volatile__("lfence; rdtscp; lfence" : : : "rax", "rdx", "rcx", "memory")
+
 #define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 #define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 
@@ -145,6 +147,7 @@ void* ping2(void* _g)
     fprintf(stderr, DBG "ping: finished\n");
 #endif
     rec_times[trial] = (uint64_t)stop - start;
+    FORCE_SERIAL;
     pthread_barrier_wait(&barrier);
   }
 
@@ -182,6 +185,7 @@ void* pong2(void* _g)
 #if VERBOSE
     fprintf(stderr, DBG "pong: finished\n");
 #endif
+    FORCE_SERIAL;
     pthread_barrier_wait(&barrier);
   }
 
@@ -243,7 +247,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
           pong2,
           (void*)&game);
       if (start_condition != 0) {
-        printf("[INFO] PONG Did not start correct\n");
+        fprintf(stderr, DBG "PONG Did not start correct\n");
       }
 
       // player 2
@@ -253,7 +257,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
           (void*)&game);
 
       if (start_condition != 0) {
-        printf("[INFO] PING Did not start correct\n");
+        fprintf(stderr, DBG "PING Did not start correct\n");
       }
       void* result_ptr;
 
