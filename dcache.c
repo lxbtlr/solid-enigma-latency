@@ -342,7 +342,6 @@ void pair(uint64_t cpu1, uint64_t cpu2)
 
 int main(int argc, char* argv[])
 {
-  int mode;
   // long t1, t2;
 
   if (argc != 4) {
@@ -350,10 +349,10 @@ int main(int argc, char* argv[])
     printf("usage: pingpong thread_1 thread_2 Mode\n");
     exit(-1);
   }
-  long t1 = (uint64_t)atol(argv[1]); // thread 1
-  long t2 = (uint64_t)atol(argv[2]); // thread 2
+  long t1 = (uint64_t)atol(argv[1]);   // thread 1
+  long t2 = (uint64_t)atol(argv[2]);   // thread 2
+  long mode = (uint64_t)atol(argv[3]); // mode
   // AVOID_HT = atoi(argv[3]); // avoid hyperthreading?
-  mode = atoi(argv[3]); // op mode
 
   FILE* f = fopen(FNAME, "w");
   // mk barrier
