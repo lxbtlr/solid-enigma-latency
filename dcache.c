@@ -145,8 +145,8 @@ void* ping2(void* _g)
 #if VERBOSE
     fprintf(stderr, DBG "ping: finished\n");
 #endif
-    pthread_barrier_wait(&barrier);
     rec_times[trial] = (uint64_t)stop - start;
+    pthread_barrier_wait(&barrier);
   }
 
   pthread_exit(rec_times);
