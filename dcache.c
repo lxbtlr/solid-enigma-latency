@@ -220,8 +220,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   // NOTE: Beginning of first loop (through all threads)
   long start_condition;
 
-  uint64_t cthread_1 = 0;
-  uint64_t cthread_2 = 0;
+  uint64_t cthread_1;
+  uint64_t cthread_2;
 
   passes game = {
     .player1 = cthread_1,
