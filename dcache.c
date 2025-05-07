@@ -15,7 +15,6 @@
  * 2. do this again using inline assembly
  */
 #define VERBOSE 0
-#define NUM_ITERS 1000
 
 #define NUM_TRIALS 10000
 uint64_t ntrials = NUM_TRIALS;
@@ -108,7 +107,7 @@ typedef struct {
 void* ping2(void* _g)
 {
   passes* g = _g;
-  long myid = (long)(g->player1);
+  long myid = (long)*(g->player1);
 
   uint64_t* rec_times = malloc(sizeof(uint64_t) * ntrials);
 
@@ -123,8 +122,8 @@ void* ping2(void* _g)
 #if VERBOSE
   fprintf(stderr, DBG "ping: Set Affinity\n");
 #endif
-  uint64_t start = 0;
-  uint64_t stop = 0;
+  uint64_t start;
+  uint64_t stop;
   // should start the clock and write to data in memory
 
   for (uint64_t trial = 0; trial < ntrials; trial++) {
