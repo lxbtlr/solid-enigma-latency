@@ -3,10 +3,15 @@ import numpy
 import matplotlib.pyplot as mpl
 import argparse
 import seaborn
+import datetime as dt
 from scipy.cluster import hierarchy 
 # import networkx
 
 from enum import Enum
+
+
+stamp = dt.datetime.today().strftime("%Y.%m.%d-%H.%M-")
+
 
 class Graph(Enum):
     heatmap=1
@@ -139,7 +144,7 @@ def heatmap(input_data):
 
 
 
-    mpl.savefig("imgs/"+args.title + ".pdf", dpi=300)
+    mpl.savefig("imgs/"+stamp+ args.title + ".pdf", dpi=300)
     mpl.show()
     pass
 
