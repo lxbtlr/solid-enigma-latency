@@ -4,10 +4,15 @@ import matplotlib.pyplot as mpl
 import argparse
 from pandas.core import api
 import seaborn
+import datetime as dt
 from scipy.cluster import hierarchy 
 # import networkx
 
 from enum import Enum
+
+
+stamp = dt.datetime.today().strftime("%Y.%m.%d-%H.%M-")
+
 
 class Graph(Enum):
     heatmap=1
@@ -144,7 +149,8 @@ def heatmap(input_data,title):
 
 
 
-    mpl.savefig("imgs/"+title.replace(" ","_") + ".pdf", dpi=300)
+    mpl.savefig("imgs/"+stamp+_title.replace(" ","_") + ".pdf", dpi=300)
+    mpl.show()
     pass
 
 def logical_to_physical(df,s,c):
