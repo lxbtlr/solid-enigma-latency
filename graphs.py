@@ -2,6 +2,7 @@ import pandas
 import numpy 
 import matplotlib.pyplot as mpl
 import argparse
+from pandas.core import api
 import seaborn
 import datetime as dt
 from scipy.cluster import hierarchy 
@@ -25,8 +26,8 @@ parser = argparse.ArgumentParser(prog='Latency Graphs',
 
 # TODO: add more args as needed
 parser.add_argument("filename",help="data file")
+parser.add_argument("title",help="graph title",default=None)
 parser.add_argument("-g","--graph",help="graph type [heatmap, kmeans, dendrites]")
-parser.add_argument("-t","--title",help="graph title")
 parser.add_argument("-n","--numa",help="# numa nodes (default=1)", default=None)
 #parser.add_argument("")
 
@@ -78,15 +79,13 @@ def kmeans(k,input_data):
     
     return k
 
-def p2p_mins(df):
-    return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].min().reset_index() 
-
-
 def p2p_means(df):
     return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].mean().reset_index() 
 
+def p2p_mins(df):
+    return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].min().reset_index() 
 
-def heatmap(input_data):
+def heatmap(input_data, title):
     """
     generate a heatmap to visualize latency data
         
@@ -97,9 +96,11 @@ def heatmap(input_data):
    t4 xx xx xx XX
 
     """
-    
+    _data = input_data.pivot(index=input_data.columns[0],
+                             columns=input_data.columns[1],
+                             values=input_data.columns[2]).fillna(0)
+
     num_threads = input_data["thread_2"].max()+1
-    print(num_threads)
     ticks_offset = 1
     
     # NOTE: adjust the tick offsets if there are more than 32 threads
@@ -107,12 +108,10 @@ def heatmap(input_data):
         ticks_offset = num_threads // 8
 
     print(ticks_offset, args.numa)
-    _data = input_data.pivot(index=input_data.columns[0],
-                             columns=input_data.columns[1],
-                             values=input_data.columns[2]).fillna(0)
-
     _f, ax = mpl.subplots(figsize=(10, 10))
-    ax.set_title(f"{args.title}" + f"(NUMA:{args.numa})" if args.numa is not None else "" )
+    _title = title + f"(NUMA:{args.numa})" if args.numa is not None else title
+    print("title:",_title, "n threads",num_threads)
+    ax.set_title(_title )
     
     interval = num_threads
     if args.numa is not None: 
@@ -148,11 +147,10 @@ def heatmap(input_data):
 
 
 
-    mpl.savefig("imgs/"+stamp+ args.title + ".pdf", dpi=300)
-    mpl.show()
+    mpl.savefig("imgs/"+stamp+_title.replace(" ","_") + ".pdf", dpi=300)
     pass
 
-def logical_to_physical(df,c,s):
+def logical_to_physical(df,s,c):
     """
         @params 
         data
@@ -160,45 +158,47 @@ def logical_to_physical(df,c,s):
         sockets
     """  
 
-    df["thread_1"] = ((df["thread_1"]%c) * s) +(df["thread_1"]//c) 
-    df["thread_2"] = ((df["thread_2"]%c) * s) +(df["thread_2"]//c) 
-    df["time"] =       df["time"]
-
+    df["thread_1"] = ((df["thread_1"]%s) * c) +(df["thread_1"]//s) 
+    df["thread_2"] = ((df["thread_2"]%s) * c) +(df["thread_2"]//s) 
     return df
 
 
 if __name__ == "__main__":
     
     args = parser.parse_args()
-    graph = args.graph
-
-    #globals_df, locals_df = read_file(args.filename)
+    graph = args.graph 
+    title = args.title 
     
     data = rf(args.filename)
-
-    #avgs_data = p2p_means(data)
+    avgs_data = p2p_means(data)
     mins_data = p2p_mins(data)
 
-    #print(mins_data)
-    #print(avgs_data)
-    max_threads = int(mins_data["thread_1"].max()+1)
+    max_thread = avgs_data["thread_2"].max()
+    # If args numa is specified
+    sockets = 1
+    cores = max_thread
+    if args.numa is not None: 
+        if args.numa < 1:
+            pass
+        else:
+            sockets= args.numa
+            cores = max_thread // args.numa 
 
-    sockets= int(args.numa) if args.numa is not None else 1
-    cores = int(max_threads / sockets) if args.numa is not None else max_threads
-
+    avgs_data = logical_to_physical(avgs_data,sockets,cores)
     mins_data = logical_to_physical(mins_data,sockets,cores)
-    #avgs_data = logical_to_physical(avgs_data,sockets,cores)
 
-    #print(avgs_data)
+    print(avgs_data)
     print(mins_data)
-
+    
     if int(graph) == Graph.heatmap.value:
-        #heatmap(avgs_data)
-        heatmap(mins_data)
+        avg_title = str(title) +  "(avgs)"
+        min_title = str(title) +  "(mins)"
+        heatmap(avgs_data, avg_title)
+        heatmap(mins_data, min_title)
     elif graph == Graph.kmeans.value:
         pass
     elif graph == Graph.dendrite.value:
         pass
 
-    pass
+    mpl.show()
 
