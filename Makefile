@@ -6,7 +6,7 @@ AS := gcc              # Use gcc for preprocessing .S files
 CFLAGS := -Wall -Wextra -O0 -g -lpthread
 
 # Project name (name of the final executable)
-TARGETS := icache dcache
+TARGETS := icache dcache nti_icache
 
 # Sources
 icache_C_SRCS := icache.c
@@ -16,6 +16,13 @@ icache_SRCS := $(icache_C_SRCS) $(icache_S_SRCS)
 icache_OBJS := $(icache_SRCS:.c=.o)
 icache_OBJS := $(icache_OBJS:.S=.o)
 
+# NTI dups
+NTI_icache_C_SRCS := icache.c
+NTI_icache_S_SRCS := movnti.S
+NTI_icache_SRCS := $(icache_C_SRCS) $(NTI_icache_S_SRCS)
+
+NTI_icache_OBJS := $(NTI_icache_SRCS:.c=.o)
+NTI_icache_OBJS := $(NTI_icache_OBJS:.S=.o)
 # Sources
 dcache_SRCS := dcache.c
 
@@ -26,6 +33,9 @@ all: $(TARGETS)
 
 # Build rules for each executable
 icache: $(icache_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+nti_icache: $(NTI_icache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 dcache: $(dcache_OBJS)
@@ -41,7 +51,7 @@ dcache: $(dcache_OBJS)
 
 # Clean build artifacts
 clean:
-	rm -f $(icache_OBJS) $(dcache_OBJS) $(TARGETS)
+	rm -f $(NTI_icache_OBJS) $(icache_OBJS) $(dcache_OBJS) $(TARGETS)
 
 # Phony targets
 .PHONY: all clean

@@ -5,3 +5,7 @@ core.*
 *.o
 *.out
 *.bin
+.venv/*
+imgs/*
+*.pdf
+*.file
