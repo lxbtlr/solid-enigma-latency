@@ -78,6 +78,10 @@ def kmeans(k,input_data):
     
     return k
 
+def p2p_mins(df):
+    return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].min().reset_index() 
+
+
 def p2p_means(df):
     return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].mean().reset_index() 
 
@@ -148,6 +152,21 @@ def heatmap(input_data):
     mpl.show()
     pass
 
+def logical_to_physical(df,c,s):
+    """
+        @params 
+        data
+        cores
+        sockets
+    """  
+
+    df["thread_1"] = ((df["thread_1"]%c) * s) +(df["thread_1"]//c) 
+    df["thread_2"] = ((df["thread_2"]%c) * s) +(df["thread_2"]//c) 
+    df["time"] =       df["time"]
+
+    return df
+
+
 if __name__ == "__main__":
     
     args = parser.parse_args()
@@ -157,18 +176,25 @@ if __name__ == "__main__":
     
     data = rf(args.filename)
 
-    avgs_data = p2p_means(data)
-    max_thread = avgs_data["thread_1"].max()
-    sockets= 4
-    cores = 44
-    avgs_data["thread_1"] = ((avgs_data["thread_1"]%sockets) * cores) +(avgs_data["thread_1"]//sockets) 
-    avgs_data["thread_2"] = ((avgs_data["thread_2"]%sockets) * cores) +(avgs_data["thread_2"]//sockets) 
-    avgs_data["time"] = avgs_data["time"]
+    #avgs_data = p2p_means(data)
+    mins_data = p2p_mins(data)
 
+    #print(mins_data)
+    #print(avgs_data)
+    max_threads = int(mins_data["thread_1"].max()+1)
 
-    print(avgs_data)
+    sockets= int(args.numa) if args.numa is not None else 1
+    cores = int(max_threads / sockets) if args.numa is not None else max_threads
+
+    mins_data = logical_to_physical(mins_data,sockets,cores)
+    #avgs_data = logical_to_physical(avgs_data,sockets,cores)
+
+    #print(avgs_data)
+    print(mins_data)
+
     if int(graph) == Graph.heatmap.value:
-        heatmap(avgs_data)
+        #heatmap(avgs_data)
+        heatmap(mins_data)
     elif graph == Graph.kmeans.value:
         pass
     elif graph == Graph.dendrite.value:
