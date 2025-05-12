@@ -53,7 +53,7 @@
           export NC='\033[0m'
           make clean -s
           PATH="${pkgs.clang-tools}/bin:$PATH"
-          echo -e "\t\t# Now in $YEL ${name} Shell$NC #"
+          echo -e "\t\t#$YEL Now in ${name} Shell$NC #"
           git status -s
         '';
           
