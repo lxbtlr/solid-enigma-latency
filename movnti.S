@@ -17,7 +17,8 @@ gadget_patch1:
   #MOVL $0x90909090,loop2(%rip) # 0x0(%rax)
   #MOVABS $0x
   
-  MOVNTI $0x00eb9090,gadget_patch2(%rip) # 0x0(%rax)
+  MOV %rax,$0x00eb9090 # 0x0(%rax)
+  MOVNTI gadget_patch2(%rip),$rax # 0x0(%rax)
 
 
   # MOVABS $0x9090909090909090, %rdi 
@@ -38,7 +39,8 @@ gadget_entry:
   #MOVW $0x9090,gadget_patch1(%rip) # 0x0(%rax)
   #MOVW $0x9090, %rdi
   # lock XCHG %rdi,gadget_patch1(%rip) # 0x0(%rax)
-  MOVNTI $0x00eb9090,gadget_patch1(%rip) # 0x0(%rax)
+  MOV %rax,$0x00eb9090 # 0x0(%rax)
+  MOVNTI gadget_patch1(%rip),$rax # 0x0(%rax)
   #MOVW $0x9090,gadget_patch1 # 0x0(%rax)
 
 loop2:
