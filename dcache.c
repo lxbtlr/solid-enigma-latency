@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+
 /*
  * thread to thread latency test.
  * Times collected should be the combination of trip to thread, write to data,
@@ -14,8 +15,9 @@
  * 1. do this first using c constructs (types etc)
  * 2. do this again using inline assembly
  */
-#define VERBOSE 0
 
+#define VERBOSE 0
+#define PAGE_SIZE 0x1000
 #define NUM_TRIALS 10000
 uint64_t ntrials = NUM_TRIALS;
 
@@ -32,6 +34,7 @@ uint64_t ntrials = NUM_TRIALS;
 
 #define FNAME "dcache_out.file"
 
+#define test_t uint8_t
 #define uchar_t uint8_t
 // Timer mechanism using rdtsc (?)
 #define rdtscll(val)                          \
@@ -67,24 +70,24 @@ typedef struct {
 
 void memrst(sharedm* data)
 {
-  memset(data->write_addr, 0, 0x1000);
-  memset(data->read_addr, 0, 0x1000);
+  memset(data->write_addr, 0, PAGE_SIZE);
+  memset(data->read_addr, 0, PAGE_SIZE);
 }
 
 void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1, const uint64_t thread2)
 {
-  void* serve = mmap(NULL, 0x1000,
+  void* serve = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
 
-  memset(serve, 0, 0x1000);
+  memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, 0x1000,
+  void* volley = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
-  memset(volley, 0, 0x1000);
+  memset(volley, 0, PAGE_SIZE);
 
   // t1->tid = tid[thread1];
   t1->cpu = thread1;
@@ -101,9 +104,9 @@ void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1, const uint64_
 typedef struct {
   uint64_t player1;
   uint64_t player2;
-  volatile uint64_t* first;
-  volatile uint64_t* second;
-} passes;
+  uint64_t* first;
+  uint64_t* second;
+} __attribute__((packed)) __attribute__((aligned(PAGE_SIZE))) passes;
 
 // NOTE: FIX ALL THE UNNECESSARY IO
 void* ping2(void* _g)
@@ -136,12 +139,13 @@ void* ping2(void* _g)
     rdtscll(start);
 
     *g->first = 1;
-    //*g->first = 1;            // serve ball
+
     while (*g->second == 0) { // wait for return
       // sit and wait
     }
     rdtscll(stop);
-    // printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
+    // NOTE: we no longer print each iter
+    //  printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
     *g->first = 0; // Reset
 #if VERBOSE
     fprintf(stderr, DBG "ping: finished\n");
@@ -173,7 +177,6 @@ void* pong2(void* _g)
       // sit and wait
     }
     *g->second = 1;
-    //*g->second = 1;
 
 #if VERBOSE
     fprintf(stderr, "[INFO] Exiting thread %lu\n", g->player2);
@@ -198,29 +201,22 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   uint64_t beginning = thread1;
   uint64_t ending = thread2;
 
-  void* serve = mmap(NULL, 0x1000,
+  void* serve = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
 
-  memset(serve, 0, 0x1000);
+  memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, 0x1000,
+  void* volley = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
-  memset(volley, 0, 0x1000);
-
-  // passes game = {
-  //   .player1 = thread1,
-  //   .player2 = thread2,
-  //   .first = (uint64_t*)serve,
-  //   .second = (uint64_t*)volley,
-  // };
+  memset(volley, 0, PAGE_SIZE);
 
   pthread_t* tid;
   tid = (pthread_t*)malloc(sizeof(pthread_t) * 2); // magic number justified,
-  // NOTE: Beginning of first loop (through all threads)
+
   long start_condition;
 
   uint64_t cthread_1;
@@ -273,10 +269,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
     // pthread_barrier_destroy(&barrier);
   }
 
-  //*game.first = 0;
-  //*game.second = 0;
-  munmap(serve, 0x1000);
-  munmap(volley, 0x1000);
+  munmap(serve, PAGE_SIZE);
+  munmap(volley, PAGE_SIZE);
   return;
 }
 
@@ -285,18 +279,18 @@ void pair(uint64_t cpu1, uint64_t cpu2)
 
   pthread_t* tid;
 
-  void* serve = mmap(NULL, 0x1000,
+  void* serve = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
 
-  memset(serve, 0, 0x1000);
+  memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, 0x1000,
+  void* volley = mmap(NULL, PAGE_SIZE,
       PROT_READ | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS,
       0, 0);
-  memset(volley, 0, 0x1000);
+  memset(volley, 0, PAGE_SIZE);
 
   passes game = {
     .player1 = cpu1,
@@ -305,10 +299,8 @@ void pair(uint64_t cpu1, uint64_t cpu2)
     .second = (uint64_t*)volley,
   };
 
-  tid = (pthread_t*)malloc(sizeof(pthread_t) * 2); // magic number justified,
-                                                   // only ever two threads spinning
-  // TODO: MAKE THIS THE TOURNAMENT
-
+  tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
+                                                             // only ever two threads spinning
   // Set up the threads
   long start_condition;
 #if VERBOSE
@@ -335,16 +327,14 @@ void pair(uint64_t cpu1, uint64_t cpu2)
   }
   pthread_join(tid[0], NULL);
   pthread_join(tid[1], NULL);
-  //*game.first = 0;
-  //*game.second = 0;
-  munmap(serve, 0x1000);
-  munmap(volley, 0x1000);
+
+  munmap(serve, PAGE_SIZE);
+  munmap(volley, PAGE_SIZE);
   return;
 }
 
 int main(int argc, char* argv[])
 {
-  // long t1, t2;
 
   if (argc != 4) {
     // TODO: bake modes into this (thread pairs vs thread sweeps)
@@ -354,7 +344,6 @@ int main(int argc, char* argv[])
   long t1 = (uint64_t)atol(argv[1]);   // thread 1
   long t2 = (uint64_t)atol(argv[2]);   // thread 2
   long mode = (uint64_t)atol(argv[3]); // mode
-  // AVOID_HT = atoi(argv[3]); // avoid hyperthreading?
 
   FILE* f = fopen(FNAME, "w");
   // mk barrier
@@ -363,8 +352,6 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  // pthread_t tid[t2];
-  //  malloc the data array
 #if VERBOSE
   printf("Start Tests\n");
 #endif
@@ -383,8 +370,6 @@ int main(int argc, char* argv[])
 #if VERBOSE
     fprintf(stderr, DBG "starting pingpong\n");
 #endif
-    // FIXME: HERE
-    fprintf(stderr, DBG "starting pingpong\n");
     pingpong(t1, t2, f);
     break;
   }
