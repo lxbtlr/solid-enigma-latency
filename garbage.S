@@ -9,10 +9,9 @@ gadget_patch1:
   #lea loop2(%rip), %rax
   #MOVL $0x90909090,loop2(%rip) # 0x0(%rax)
   #MOVABS $0x
-  
+ 
+
   MOVW $0x00eb,gadget_patch2(%rip) # 0x0(%rax)
-
-
   # MOVABS $0x9090909090909090, %rdi 
   # MOVQ %rdi,gadget_patch2(%rip) # 0x0(%rax)
 
