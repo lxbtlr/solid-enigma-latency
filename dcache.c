@@ -122,6 +122,7 @@ typedef struct {
 
 // NOTE: FIX ALL THE UNNECESSARY IO
 
+#ifndef __x86_64__
 void* arm_ping(void* _g)
 {
   passes* g = _g;
@@ -209,7 +210,7 @@ void* arm_pong(void* _g)
 
   pthread_exit(NULL);
 }
-
+#endif
 void* ping2(void* _g)
 {
   passes* g = _g;
