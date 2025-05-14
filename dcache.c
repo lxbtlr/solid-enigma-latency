@@ -9,11 +9,9 @@
 #include <unistd.h>
 
 /*
- * thread to thread latency test.
- * Times collected should be the combination of trip to thread, write to data,
- * and flight back to original thread
- * 1. do this first using c constructs (types etc)
- * 2. do this again using inline assembly
+ * TODO:
+ * - select correct latency test based on the architecture code is compiled for
+ * -
  */
 
 #define VERBOSE 0
@@ -148,6 +146,7 @@ void* arm_ping(void* _g)
   uint64_t state;
   for (uint64_t trial = 0; trial < NUM_TRIALS; trial++) {
     *g->first = 1;
+
     asm volatile("dmb ish;"
                  "dsb ish;"
                  "isb sy;" :::);
@@ -252,7 +251,9 @@ void* ping2(void* _g)
     //  printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
     *g->first = 0; // Reset
     rec_times[trial] = (uint64_t)stop - start;
+#ifdef __x86_64__
     FORCE_SERIAL;
+#endif
 #if VERBOSE
     fprintf(stderr, DBG "ping: finished\n");
 #endif
@@ -293,7 +294,9 @@ void* pong2(void* _g)
 #if VERBOSE
     fprintf(stderr, DBG "pong: finished\n");
 #endif
-    // FORCE_SERIAL;
+#ifdef __x86_64__
+    FORCE_SERIAL;
+#endif
     pthread_barrier_wait(&barrier);
   }
 
@@ -343,6 +346,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 #if VERBOSE
       fprintf(stderr, "starting thread1\n");
 #endif
+#ifdef __x86_64__
       start_condition = pthread_create(&tid[0],
           NULL,
           pong2,
@@ -360,6 +364,27 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       if (start_condition != 0) {
         fprintf(stderr, DBG "PING Did not start correct\n");
       }
+#else
+
+      start_condition = pthread_create(&tid[0],
+          NULL,
+          arm_pong,
+          (void*)&game);
+      if (start_condition != 0) {
+        fprintf(stderr, DBG "PONG Did not start correct\n");
+      }
+
+      // player 2
+      start_condition = pthread_create(&tid[1],
+          NULL,
+          arm_ping,
+          (void*)&game);
+
+      if (start_condition != 0) {
+        fprintf(stderr, DBG "PING Did not start correct\n");
+      }
+
+#endif
       void* result_ptr;
 
       pthread_join(tid[0], NULL);
