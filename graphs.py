@@ -39,6 +39,7 @@ def rf(fname:str):
     """
     Read csv, and output local and globals df's
     """
+    print(fname)
     _df = pandas.read_csv(fname)
     print(_df)
     return _df

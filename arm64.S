@@ -1,6 +1,7 @@
   .global gadget_start
 gadget_start:
-// NOTE: DESIGNED FOR ARM64
+
+  // NOTE: DESIGNED FOR ARM64
   .balign 64
 
   .global gadget_patch1
@@ -43,8 +44,7 @@ gadget_patch2:
   b gadget_patch2
 gadget2:
 
-  ret // TODO: check this line
-
+  ret
 .g1:
   .word 0xeaffffff
   //.word nop 
@@ -54,4 +54,5 @@ gadget2:
 
   .global gadget_end
 gadget_end:
+
 

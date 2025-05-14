@@ -3,6 +3,7 @@
 ## Ping Pong
 Needed a ping pong tester, so I made one
 
+This system has been tested for x86_64, cont'd
 
 ### Dcache write latency
 ```bash
@@ -31,15 +32,11 @@ All output is printed to stdout, info is output to stderr. Direct stdout to a fi
 ### graphs.py
 WIP: currently able to take an output file and create a heatmap from it:
 ```bash
-//                  graph       title          input_file
- $ python3 graphs.py -g 1 -t "framework (amd)" test.out
+//                  graph   input_file    title 
+ $ python3 graphs.py -g 1  test.out "framework (amd)"
 ```
 
 
 
-
-
-## TODO: 
-- look at using sched_setscheduler to increase priority of the tester to reduce noise
 
 
