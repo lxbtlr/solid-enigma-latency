@@ -120,7 +120,7 @@ def heatmap(input_data, title):
     print(f"Numa={args.numa}\tInterval={interval}")
         
     g = seaborn.heatmap(_data, ax=ax,fmt=".1f", xticklabels=True, yticklabels=True,
-                        square=True, vmax=1600)
+                        square=True, vmax=800)
                         #annot=numpy.round(_data, 1),
                         #annot_kws={"size": 4, "color": "white"})
     g.set_xticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
