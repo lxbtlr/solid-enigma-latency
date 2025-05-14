@@ -18,7 +18,7 @@
 
 #define VERBOSE 0
 #define PAGE_SIZE 0x1000
-#define NUM_TRIALS 10000
+#define NUM_TRIALS 1000
 uint64_t ntrials = NUM_TRIALS;
 
 #define INT_MAX_TEMP 0x7fffffff
@@ -37,17 +37,32 @@ uint64_t ntrials = NUM_TRIALS;
 #define test_t uint8_t
 #define uchar_t uint8_t
 // Timer mechanism using rdtsc (?)
+
+uint64_t alaska_timestamp() {
+  struct timespec spec;
+  clock_gettime(1, &spec);
+  return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
+}
+
+
+#ifdef __x86_64__
+
+#define FORCE_SERIAL __asm__ __volatile__("lfence; rdtscp; lfence" : : : "rax", "rdx", "rcx", "memory")
 #define rdtscll(val)                          \
   do {                                        \
     uint64_t tsc;                             \
     uint32_t a, d;                            \
-    asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
+	asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
     *(uint32_t*)&(tsc) = a;                   \
     *(uint32_t*)(((uchar_t*)&tsc) + 4) = d;   \
     val = tsc;                                \
   } while (0)
+#else 
 
-#define FORCE_SERIAL __asm__ __volatile__("lfence; rdtscp; lfence" : : : "rax", "rdx", "rcx", "memory")
+#define AMORTIZED_RUNS 100
+#define rdtscll(val) val = alaska_timestamp()  
+#endif
+
 
 #define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 #define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
@@ -130,12 +145,31 @@ void* ping2(void* _g)
   uint64_t start;
   uint64_t stop;
   // should start the clock and write to data in memory
-
+  uint64_t runs = 0;
   for (uint64_t trial = 0; trial < ntrials; trial++) {
 
 #if VERBOSE
     fprintf(stderr, DBG "ping: trial %lu\n", trial);
 #endif
+
+
+#ifdef AMORTIZED_RUNS
+    rdtscll(start);
+    for (runs = 0; runs<AMORTIZED_RUNS ; runs++){
+       *g->first = 1;
+
+       while (*g->second == 0) { // wait for return
+         // sit and wait
+       }
+       // NOTE: we no longer print each iter
+       //  printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
+       *g->first = 0; // Reset
+    }
+    rdtscll(stop);
+    rec_times[trial] = (uint64_t)(stop - start)/AMORTIZED_RUNS;
+    
+    printf("%lu, b:%lu, e:%lu\n",rec_times[trial], start, stop);
+#else    
     rdtscll(start);
 
     *g->first = 1;
@@ -147,11 +181,12 @@ void* ping2(void* _g)
     // NOTE: we no longer print each iter
     //  printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
     *g->first = 0; // Reset
+    rec_times[trial] = (uint64_t)stop - start;
+    FORCE_SERIAL;
+#endif
 #if VERBOSE
     fprintf(stderr, DBG "ping: finished\n");
 #endif
-    rec_times[trial] = (uint64_t)stop - start;
-    FORCE_SERIAL;
     pthread_barrier_wait(&barrier);
   }
 
@@ -173,6 +208,10 @@ void* pong2(void* _g)
 #endif
   for (uint64_t trial = 0; trial < ntrials; trial++) {
     // should observe the change in memory,
+    
+#ifdef AMORTIZED_RUNS
+    for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
+#endif
     while (*g->first == 0) {
       // sit and wait
     }
@@ -185,10 +224,14 @@ void* pong2(void* _g)
     while (*g->first != 0) { }
     *g->second = 0; // Reset
 
+#ifdef AMORTIZED_RUNS
+    }
+#endif
+
 #if VERBOSE
     fprintf(stderr, DBG "pong: finished\n");
 #endif
-    FORCE_SERIAL;
+    //FORCE_SERIAL;
     pthread_barrier_wait(&barrier);
   }
 

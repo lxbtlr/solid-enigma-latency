@@ -31,7 +31,7 @@ pthread_barrier_t barrier;
 #define ALERT(str) COLOR_BOLD_RED str COLOR_RESET
 
 #define NUM_THREADS 2
-#define NUM_TRIALS 1000
+#define NUM_TRIALS 10000
 uint64_t ntrials = NUM_TRIALS;
 
 #define AMORTIZED_RUNS 100
@@ -285,6 +285,7 @@ void* volley(void* arg)
 #endif	
     gadget->code();
 #ifdef AMORTIZED_RUNS
+    *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
   }
 #endif	
 #if VOLLEY_TALK
