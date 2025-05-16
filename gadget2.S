@@ -3,17 +3,17 @@ gadget_start:
   .align 64
   .global gadget_patch1
 gadget_patch1:
-top:
+maine:
   jmp .
  
 
   MOVW $0x00eb,gadget_patch2(%rip) # 0x0(%rax)
-mid:
+newyork:
   jmp .
 
   MOVW $0x00eb,gadget_patch2(%rip) # 0x0(%rax)
   
-  jmp top
+  jmp maine
   
   jmp done
 
