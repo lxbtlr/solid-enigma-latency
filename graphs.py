@@ -160,7 +160,7 @@ def heatmap(input_data, title, ht=2):
     mpl.savefig("imgs/"+stamp+_title.replace(" ","_") + ".pdf", dpi=300)
     pass
 
-def logical_to_physical(_df,s,c):
+def logical_to_physical(df,s,c):
     """
         @params 
         data
@@ -170,7 +170,6 @@ def logical_to_physical(_df,s,c):
     def f(n):
         return ((n % s)*( c if n>c else 1 )) + n // s
 
-    df = _df.copy()
 
     df["thread_1"].map(f,na_action='ignore')
     df["thread_2"].map(f,na_action='ignore')
