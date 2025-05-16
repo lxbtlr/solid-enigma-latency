@@ -9,3 +9,8 @@ core.*
 imgs/*
 *.pdf
 *.file
+**-link
+.cache
+test
+compile_commands.json
+
