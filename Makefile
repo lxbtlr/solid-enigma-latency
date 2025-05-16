@@ -6,7 +6,8 @@ AS := gcc              # Use gcc for preprocessing .S files
 CFLAGS := -Wall -Wextra -O0 -g -lpthread
 
 # Project name (name of the final executable)
-TARGETS := icache dcache nti_icache arm_icache
+#TARGETS := icache dcache arm_icache nti_icache
+TARGETS := icache dcache #arm_icache #nti_icache
 
 # Sources
 icache_C_SRCS := icache.c
@@ -16,13 +17,12 @@ icache_SRCS := $(icache_C_SRCS) $(icache_S_SRCS)
 icache_OBJS := $(icache_SRCS:.c=.o)
 icache_OBJS := $(icache_OBJS:.S=.o)
 
-# NTI dups
-NTI_icache_C_SRCS := icache.c
-NTI_icache_S_SRCS := movnti.S
-NTI_icache_SRCS := $(icache_C_SRCS) $(NTI_icache_S_SRCS)
-
-NTI_icache_OBJS := $(NTI_icache_SRCS:.c=.o)
-NTI_icache_OBJS := $(NTI_icache_OBJS:.S=.o)
+## NTI dups
+#NTI_icache_C_SRCS := icache.c
+#NTI_icache_S_SRCS := movnti.S
+#NTI_icache_SRCS := $(icache_C_SRCS) $(NTI_icache_S_SRCS)
+#NTI_icache_OBJS := $(NTI_icache_SRCS:.c=.o)
+#NTI_icache_OBJS := $(NTI_icache_OBJS:.S=.o)
 
 arm_icache_C_SRCS := icache.c
 arm_icache_S_SRCS := arm64.S
@@ -44,8 +44,8 @@ all: $(TARGETS)
 icache: $(icache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-nti_icache: $(NTI_icache_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
+#nti_icache: $(NTI_icache_OBJS)
+#	$(CC) $(CFLAGS) -o $@ $^
 
 arm_icache: $(arm_icache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
