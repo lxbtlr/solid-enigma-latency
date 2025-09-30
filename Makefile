@@ -6,7 +6,7 @@ AS := gcc              # Use gcc for preprocessing .S files
 CFLAGS := -Wall -Wextra -O0 -g -lpthread
 
 # Project name (name of the final executable)
-TARGETS := icache dcache nti_icache arm_icache
+TARGETS := icache dcache ladder #arm_icache #nti_icache
 
 # Sources
 icache_C_SRCS := icache.c
@@ -15,6 +15,15 @@ icache_SRCS := $(icache_C_SRCS) $(icache_S_SRCS)
 # Object files
 icache_OBJS := $(icache_SRCS:.c=.o)
 icache_OBJS := $(icache_OBJS:.S=.o)
+
+# ladder Sources
+ladder_icache_C_SRCS := icache_ladder.c
+ladder_icache_S_SRCS := ladder.S
+ladder_icache_SRCS := $(ladder_icache_C_SRCS) $(ladder_icache_S_SRCS)
+# Object files
+ladder_icache_OBJS := $(ladder_icache_SRCS:.c=.o)
+ladder_icache_OBJS := $(ladder_icache_OBJS:.S=.o)
+
 
 # NTI dups
 NTI_icache_C_SRCS := icache.c
@@ -36,7 +45,7 @@ arm_icache_OBJS := $(arm_icache_OBJS:.S=.o)
 dcache_SRCS := dcache.c
 
 # Object files
-dcache_OBJS := $(dcache_SRCS:.c=.o)
+#dcache_OBJS := $(dcache_SRCS:.c=.o)
 
 all: $(TARGETS)
 
@@ -44,13 +53,17 @@ all: $(TARGETS)
 icache: $(icache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-nti_icache: $(NTI_icache_OBJS)
+ladder: $(ladder_icache_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-arm_icache: $(arm_icache_OBJS)
-	$(CC) $(CFLAGS) -o $@ $^
 
-dcache: $(dcache_OBJS)
+#nti_icache: $(NTI_icache_OBJS)
+#	$(CC) $(CFLAGS) -o $@ $^
+
+#arm_icache: $(arm_icache_OBJS)
+#	$(CC) $(CFLAGS) -o $@ $^
+
+dcache: $(dcache_SRCS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 # Compile C source files
@@ -63,7 +76,7 @@ dcache: $(dcache_OBJS)
 
 # Clean build artifacts
 clean:
-	rm -f $(NTI_icache_OBJS) $(icache_OBJS) $(dcache_OBJS) $(TARGETS)
+	rm -f $(NTI_icache_OBJS) $(ladder_icache_OBJS) $(icache_OBJS) $(dcache_OBJS) $(TARGETS)
 
 # Phony targets
 .PHONY: all clean
