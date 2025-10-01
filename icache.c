@@ -8,8 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <ucontext.h>
 #include <sys/time.h>
+#include <ucontext.h>
 #include <unistd.h> // unix standard apis
 // #include <math.h>
 //
@@ -104,12 +104,12 @@ void gadget_dest(gadget_t* gadget)
   }
 }
 
-uint64_t alaska_timestamp() {
+uint64_t alaska_timestamp()
+{
   struct timespec spec;
   clock_gettime(1, &spec);
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 }
-
 
 #ifdef __x86_64__
 
@@ -117,16 +117,15 @@ uint64_t alaska_timestamp() {
   do {                                        \
     uint64_t tsc;                             \
     uint32_t a, d;                            \
-	asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
+    asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
     *(uint32_t*)&(tsc) = a;                   \
     *(uint32_t*)(((uchar_t*)&tsc) + 4) = d;   \
     val = tsc;                                \
   } while (0)
-#else 
+#else
 
-#define rdtscll(val) val = alaska_timestamp()  
+#define rdtscll(val) val = alaska_timestamp()
 #endif
-
 
 #if !SIGHANDLER
 static sigjmp_buf jump_buf;
@@ -152,8 +151,6 @@ void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 #endif
 }
 #endif
-
-
 
 void hex_dump(const void* addr, size_t length, size_t target)
 {
@@ -224,7 +221,9 @@ void* serve(void* arg)
     rdtscll(start);
     for (runs = 0; runs<AMORTIZED_RUNS ; runs++){
 	
+#if VERBOSE
         printf("runs: %lu\n",runs);
+#endif
         (gadget->code + offset)();
     }
     rdtscll(stop);
@@ -276,20 +275,22 @@ void* volley(void* arg)
   // add barrier here
   for (uint64_t i = 0; i < ntrials; i++, volley_counter++) {
 
-
 #if VERBOSE
     printf("volley:" COLOR_BOLD_RED "%i\n" COLOR_RESET, i);
 #endif
 
+// TODO: split this into a more clear one or the other
 #ifdef AMORTIZED_RUNS
   for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
 #endif	
+#if VERBOSE
     printf("VRUNS: %lu\n",j);
+#endif
     gadget->code();
 #ifdef AMORTIZED_RUNS
-    *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
-  }
-#endif	
+      *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
+    }
+#endif
 #if VOLLEY_TALK
     fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch2));
@@ -300,7 +301,6 @@ void* volley(void* arg)
 #endif
     //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2, PATCH_SIZE);
     //  printf("volley: trial  %lu\n", i);
-    
 
     pthread_barrier_wait(&barrier);
     *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;

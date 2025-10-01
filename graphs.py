@@ -28,7 +28,8 @@ parser = argparse.ArgumentParser(prog='Latency Graphs',
 parser.add_argument("filename",help="data file")
 parser.add_argument("title",help="graph title",default=None)
 parser.add_argument("-g","--graph",help="graph type [heatmap, kmeans, dendrites]")
-parser.add_argument("-n","--numa",help="# numa nodes (default=1)", default=None)
+parser.add_argument("-n","--numa",help="# numa nodes (default=1)", default=1)
+parser.add_argument("-ht","--hyperthreads",help="# hyperthreads per core (default=2)", default=2)
 #parser.add_argument("")
 
 
@@ -86,7 +87,7 @@ def p2p_means(df):
 def p2p_mins(df):
     return df.groupby([df.columns[0], df.columns[1]])[df.columns[3]].min().reset_index() 
 
-def heatmap(input_data, title):
+def heatmap(input_data, title, ht=2):
     """
     generate a heatmap to visualize latency data
         
@@ -110,7 +111,7 @@ def heatmap(input_data, title):
 
     print(ticks_offset, args.numa)
     _f, ax = mpl.subplots(figsize=(10, 10))
-    _title = title + f"(NUMA:{args.numa})" if args.numa is not None else title
+    _title = title + f"(NUMA:{args.numa})" if int(args.numa) != 1 else title
     print("title:",_title, "n threads",num_threads)
     ax.set_title(_title )
     
@@ -127,6 +128,14 @@ def heatmap(input_data, title):
     g.set_yticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
     g.invert_yaxis()
 
+    # mark hyperthread regions
+    for i in range(ht, _data.shape[0], ht):
+        ax.axhline(i, color='black', lw=.7)
+    for j in range(ht, _data.shape[1], ht):
+        ax.axvline(j, color='black', lw=.7)
+
+
+    # mark edges of numa node regions
     for i in range(interval, _data.shape[0], interval):
         ax.axhline(i, color='white', lw=1.5)
     for j in range(interval, _data.shape[1], interval):
@@ -147,7 +156,7 @@ def heatmap(input_data, title):
 
 
 
-
+    #TODO: toggle with flag
     mpl.savefig("imgs/"+stamp+_title.replace(" ","_") + ".pdf", dpi=300)
     pass
 
@@ -158,9 +167,18 @@ def logical_to_physical(df,s,c):
         cores
         sockets
     """  
+    def f(n):
+        return ((n % s)*( c if n>c else 1 )) + n // s
 
-    df["thread_1"] = ((df["thread_1"]%s) * c) +(df["thread_1"]//s) 
-    df["thread_2"] = ((df["thread_2"]%s) * c) +(df["thread_2"]//s) 
+
+    df["thread_1"].map(f,na_action='ignore')
+    df["thread_2"].map(f,na_action='ignore')
+
+    # ((n % s)*( c if n>63 else 1 )) + n // s
+    #df["thread_1"] = ((df["thread_1"]%s) * ( c if df["thread_1"]>c else 1 )) +(df["thread_1"]//s) 
+    #df["thread_2"] = ((df["thread_2"]%s) * ( c if df["thread_2"]>c else 1 )) +(df["thread_2"]//s) 
+    
+    print(df)
     return df
 
 
@@ -179,23 +197,25 @@ if __name__ == "__main__":
     sockets = 1
     cores = max_thread
     if args.numa is not None: 
-        if args.numa < 1:
+        if int(args.numa) < 1:
             pass
         else:
-            sockets= args.numa
-            cores = max_thread // args.numa 
+            sockets= int(args.numa)
+            cores = max_thread // sockets 
 
+    print("avgs")
     avgs_data = logical_to_physical(avgs_data,sockets,cores)
+    print("mins")
     mins_data = logical_to_physical(mins_data,sockets,cores)
 
-    print(avgs_data)
-    print(mins_data)
+    #print(avgs_data)
+    #print(mins_data)
     
     if int(graph) == Graph.heatmap.value:
         avg_title = str(title) +  "(avgs)"
         min_title = str(title) +  "(mins)"
-        heatmap(avgs_data, avg_title)
-        heatmap(mins_data, min_title)
+        heatmap(avgs_data, avg_title, int(args.hyperthreads))
+        heatmap(mins_data, min_title,int(args.hyperthreads))
     elif graph == Graph.kmeans.value:
         pass
     elif graph == Graph.dendrite.value:

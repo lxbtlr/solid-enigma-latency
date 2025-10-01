@@ -30,6 +30,7 @@
             ]))
             gdb
             gcc
+            asmjit
             llvmPackages_16.libstdcxxClang
             clang-tools_16
             clang
