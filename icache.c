@@ -16,7 +16,7 @@
 // make our barrier
 pthread_barrier_t barrier;
 
-#define VERBOSE 0
+#define VERBOSE 0   
 #define SERVE_TALK 0
 #define VOLLEY_TALK 0
 #define SIGHANDLER 1
@@ -77,7 +77,7 @@ void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
   memcpy(gadget->patch1, code + OFFSET(gadget_patch1), PATCH_SIZE);
   memcpy(gadget->patch2, code + OFFSET(gadget_patch2), PATCH_SIZE);
 #if VERBOSE
-  fprintf(stderr, DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, garbage);
+  fprintf(stderr, DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, code);
   fprintf(stderr, DBG "gadget_start:\t0x%016x\n", gadget_start);
   fprintf(stderr, DBG "\t\tdiff:\t0x%016x\n", entry_offset());
   fprintf(stderr, DBG "gadget_entry:\t0x%016x\n", gadget_entry);
@@ -224,11 +224,12 @@ void* serve(void* arg)
     rdtscll(start);
     for (runs = 0; runs<AMORTIZED_RUNS ; runs++){
 	
-    (gadget->code + offset)();
+        printf("runs: %lu\n",runs);
+        (gadget->code + offset)();
     }
     rdtscll(stop);
     rec_times[i] = (uint64_t)(stop - start) / AMORTIZED_RUNS;
-    //printf("%lu\n",rec_times[i]);
+    printf("%lu\n",rec_times[i]);
 #else
 
     rdtscll(start);
@@ -283,6 +284,7 @@ void* volley(void* arg)
 #ifdef AMORTIZED_RUNS
   for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
 #endif	
+    printf("VRUNS: %lu\n",j);
     gadget->code();
 #ifdef AMORTIZED_RUNS
     *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
