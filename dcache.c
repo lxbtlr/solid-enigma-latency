@@ -142,7 +142,7 @@ void* arm_ping(void* _g)
   uint64_t start;
   uint64_t stop;
   // should start the clock and write to data in memory
-  uint64_t runs = 0;
+  //uint64_t runs = 0;
 
   uint64_t state;
   for (uint64_t trial = 0; trial < NUM_TRIALS; trial++) {
@@ -232,7 +232,7 @@ void* ping2(void* _g)
   uint64_t start;
   uint64_t stop;
   // should start the clock and write to data in memory
-  uint64_t runs = 0;
+  //uint64_t runs = 0;
   for (uint64_t trial = 0; trial < ntrials; trial++) {
 
 #if VERBOSE
@@ -328,8 +328,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 
   long start_condition;
 
-  uint64_t cthread_1;
-  uint64_t cthread_2;
+  uint64_t cthread_1 = beginning;
+  uint64_t cthread_2 = beginning;
 
   passes game = {
     .player1 = cthread_1,
@@ -405,7 +405,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   return;
 }
 
-void pair(uint64_t cpu1, uint64_t cpu2)
+void pair(uint64_t cpu1, uint64_t cpu2, FILE* fd)
 {
 
   pthread_t* tid;
@@ -456,9 +456,17 @@ void pair(uint64_t cpu1, uint64_t cpu2)
   if (start_condition != 0) {
     printf("[INFO] PING started incorrect\n");
   }
-  pthread_join(tid[0], NULL);
-  pthread_join(tid[1], NULL);
 
+  void* result_ptr;
+
+  pthread_join(tid[0], NULL);
+  pthread_join(tid[1], &result_ptr);
+
+  uint64_t* results = (uint64_t*)result_ptr;
+  for (uint64_t j = 0; j < ntrials; j++) {
+    fprintf(fd, "%lu,%lu,%lu,%lu\n", game.player1, game.player2, j, results[j]);
+  }
+  free(results);
   munmap(serve, PAGE_SIZE);
   munmap(volley, PAGE_SIZE);
   return;
@@ -494,7 +502,7 @@ int main(int argc, char* argv[])
 #endif
 
     fprintf(stderr, DBG "starting pair\n");
-    pair(t1, t2);
+    pair(t1, t2,f);
     break;
   }
   case 1: {
