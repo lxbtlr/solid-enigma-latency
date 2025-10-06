@@ -42,7 +42,7 @@
 #define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 #define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 
-FILE* f = fopen("test.out", "w");
+FILE* f = fopen("cdache_output.file", "w");
 
 struct sharedm { // thank you kevin for the more cogent solution to this
   // pthread_t tid;
@@ -202,7 +202,6 @@ void* ping2(void* _g)
   *g->first = 0;
 
   void* time = (void*)(end - start);
-
   pthread_exit((void*)time);
 }
 void* pong2(void* _g)
@@ -357,10 +356,10 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
     // long current = (long)set_pingpong(t1, t2);
     // printf("%lu\n", i);
     long current = (long)second_option(thread1, thread2);
-    lmin = MIN(lmin, current);
+    // lmin = MIN(lmin, current);
 
     // printf("time: %lu\n", lmin);
-    printf("%lu,%lu,%lu,%lu\n", thread1, thread2, i, lmin);
+    printf("%lu,%lu,%lu,%lu\n", thread1, thread2, i, current);
     lmax = MAX(lmax, current);
     pdata.at(i) = current;
 #if VERBOSE
@@ -378,8 +377,9 @@ stats pair(const uint64_t thread1, const uint64_t thread2)
     .aavg = aavg,
   };
 
+#if VERBOSE
   fprintf(stderr, DBG "min: %lu\nmax: %lu\naavg: %lu\n", single.min, single.max, single.aavg);
-
+#endif
   return single;
 }
 
@@ -426,8 +426,9 @@ stats tournament(const uint64_t prima, const uint64_t beg, const uint64_t last)
 #endif
       }
       v_avg(&aavg, tour);
+#if VERBOSE
       fprintf(f, "%lu,%li,%lu,%lu,%lu,\n", prima, i, lmin, lmax, aavg);
-
+#endif
       gmin = MIN(gmin, lmin);
       gmax = MAX(gmax, lmax);
       gaavg = (gaavg + aavg) / 2;

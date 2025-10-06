@@ -16,7 +16,7 @@
 // make our barrier
 pthread_barrier_t barrier;
 
-#define VERBOSE 0   
+#define VERBOSE 1
 #define SERVE_TALK 0
 #define VOLLEY_TALK 0
 #define SIGHANDLER 1
@@ -64,7 +64,7 @@ typedef struct {
 
 gadget_t josh_gad;
 
-#define OFFSET(val) (uintptr_t) val - (uintptr_t)gadget_start
+#define OFFSET(val) (uintptr_t)val - (uintptr_t)gadget_start
 // FIX: There ~MAY~ still be a race condition
 // look at gdb thread blocking detach on fork and follow ~fork child
 void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
@@ -219,16 +219,16 @@ void* serve(void* arg)
 
 #ifdef AMORTIZED_RUNS
     rdtscll(start);
-    for (runs = 0; runs<AMORTIZED_RUNS ; runs++){
-	
+    for (runs = 0; runs < AMORTIZED_RUNS; runs++) {
+
 #if VERBOSE
-        printf("runs: %lu\n",runs);
+      printf("runs: %lu\n", runs);
 #endif
-        (gadget->code + offset)();
+      (gadget->code + offset)();
     }
     rdtscll(stop);
     rec_times[i] = (uint64_t)(stop - start) / AMORTIZED_RUNS;
-    printf("%lu\n",rec_times[i]);
+    printf("%lu\n", rec_times[i]);
 #else
 
     rdtscll(start);
@@ -281,12 +281,12 @@ void* volley(void* arg)
 
 // TODO: split this into a more clear one or the other
 #ifdef AMORTIZED_RUNS
-  for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
-#endif	
-#if VERBOSE
-    printf("VRUNS: %lu\n",j);
+    for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
 #endif
-    gadget->code();
+#if VERBOSE
+      printf("VRUNS: %lu\n", j);
+#endif
+      gadget->code();
 #ifdef AMORTIZED_RUNS
       *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch2)) = *(uint64_t*)gadget->patch2;
     }
