@@ -5,6 +5,9 @@ CC := gcc
 AS := gcc              # Use gcc for preprocessing .S files
 CFLAGS := -Wall -Wextra -O0 -g -lpthread
 
+SRC := src/
+SRCG := $(SRC)/gadgets/
+
 # Project name (name of the final executable)
 TARGETS := icache dcache ladder #arm_icache #nti_icache
 
@@ -16,7 +19,6 @@ icache_SRCS := $(icache_C_SRCS) $(icache_S_SRCS)
 icache_OBJS := $(icache_SRCS:.c=.o)
 icache_OBJS := $(icache_OBJS:.S=.o)
 
-<<<<<<< HEAD
 # ladder Sources
 ladder_icache_C_SRCS := icache_ladder.c
 ladder_icache_S_SRCS := ladder.S
