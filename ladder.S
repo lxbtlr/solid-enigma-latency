@@ -3,7 +3,9 @@ gadget_start:
   .align 64
   .global rail_1
   .global rail_2
-  
+
+// NOTE: ICACHE LADDER 
+
 //RAIL 1
 rail_1:
 rail_1_0:
