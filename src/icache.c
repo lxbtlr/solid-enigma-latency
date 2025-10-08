@@ -34,7 +34,7 @@ pthread_barrier_t barrier;
 #define NUM_TRIALS 10000
 uint64_t ntrials = NUM_TRIALS;
 
-#define AMORTIZED_RUNS 100
+// #define AMORTIZED_RUNS 100
 #define PATCH_SIZE 8
 
 #define FNAME "icache_out.file"
@@ -46,10 +46,7 @@ extern uint8_t gadget_end[];
 extern uint8_t gadget_patch1[];
 extern uint8_t gadget_patch2[];
 
-size_t size_gadget()
-{
-  return (uintptr_t)gadget_end - (uintptr_t)gadget_start;
-}
+size_t size_gadget() { return (uintptr_t)gadget_end - (uintptr_t)gadget_start; }
 size_t entry_offset()
 {
   return (uintptr_t)gadget_entry - (uintptr_t)gadget_start;
@@ -77,7 +74,9 @@ void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
   memcpy(gadget->patch1, code + OFFSET(gadget_patch1), PATCH_SIZE);
   memcpy(gadget->patch2, code + OFFSET(gadget_patch2), PATCH_SIZE);
 #if VERBOSE
-  fprintf(stderr, DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, code);
+  fprintf(stderr,
+      DBG "Shared memory created at:" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET,
+      code);
   fprintf(stderr, DBG "gadget_start:\t0x%016x\n", gadget_start);
   fprintf(stderr, DBG "\t\tdiff:\t0x%016x\n", entry_offset());
   fprintf(stderr, DBG "gadget_entry:\t0x%016x\n", gadget_entry);
@@ -90,8 +89,7 @@ void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
 {
 
   // memcpy(garbage, gadget_start, size_gadget());
-  gadget->code = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_EXEC | PROT_WRITE,
+  gadget->code = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_EXEC | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS, // check this later
       0, 0);
   gadget_rst(gadget, t1, t2);
@@ -131,7 +129,8 @@ uint64_t alaska_timestamp()
 static sigjmp_buf jump_buf;
 void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 {
-  fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET, info->si_addr);
+  fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET,
+      info->si_addr);
   uint8_t* code = (uint8_t*)info->si_addr;
   for (int i = 0; i < 8; i++) {
     fprintf(stderr, "%02x ", code[i]);
@@ -238,18 +237,21 @@ void* serve(void* arg)
 #endif
 
 #if SERVE_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("post test\n"));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("post test\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
 #endif
     // NOTE: change this back
 
-    //*(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch1)) = *(uint64_t*)gadget->patch1;
+    //*(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch1)) =
+    //*(uint64_t*)gadget->patch1;
     // memcpy(gadget->code + OFFSET(gadget_patch1), gadget->patch1, PATCH_SIZE);
     pthread_barrier_wait(&barrier);
     *(volatile uint64_t*)(gadget->code + OFFSET(gadget_patch1)) = *(uint64_t*)gadget->patch1;
     memcpy(gadget->code + OFFSET(gadget_patch1), gadget->patch1, PATCH_SIZE);
 #if SERVE_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("fixed\n"));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("fixed\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
 #endif
     // printf("%lu,%lu,%lu,%lu\n", *gadget->t1, *gadget->t2, i, stop - start);
@@ -278,7 +280,7 @@ void* volley(void* arg)
 #if VERBOSE
     printf("volley:" COLOR_BOLD_RED "%i\n" COLOR_RESET, i);
 #endif
-
+    uint64_t j;
 // TODO: split this into a more clear one or the other
 #ifdef AMORTIZED_RUNS
     for (uint64_t j = 0; j < AMORTIZED_RUNS; j++) {
@@ -292,14 +294,17 @@ void* volley(void* arg)
     }
 #endif
 #if VOLLEY_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch2));
 #endif
 #if VOLLEY_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("fixed\n"));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("fixed\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch2));
 #endif
-    //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2, PATCH_SIZE);
+    //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2,
+    //   PATCH_SIZE);
     //  printf("volley: trial  %lu\n", i);
 
     pthread_barrier_wait(&barrier);
@@ -331,18 +336,12 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       // josh_gad.t1 = &cthread_1;
       // josh_gad.t2 = &cthread_2;
       gadget_rst(&josh_gad, &cthread_1, &cthread_2);
-      int t1 = pthread_create(&tid[0],
-          NULL,
-          volley,
-          (void*)&josh_gad);
+      int t1 = pthread_create(&tid[0], NULL, volley, (void*)&josh_gad);
 
       if (t1 == 1)
         fprintf(stderr, "Thread1 did not start");
 
-      int t2 = pthread_create(&tid[1],
-          NULL,
-          serve,
-          (void*)&josh_gad);
+      int t2 = pthread_create(&tid[1], NULL, serve, (void*)&josh_gad);
 
       if (t2 == 1)
         fprintf(stderr, "Thread2 did not start");
@@ -372,18 +371,12 @@ void cpu2cpu(uint64_t thread1, uint64_t thread2)
   pthread_t* tid;
   tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
 
-  int t1 = pthread_create(&tid[0],
-      NULL,
-      volley,
-      (void*)&josh_gad);
+  int t1 = pthread_create(&tid[0], NULL, volley, (void*)&josh_gad);
 
   if (t1 == 1)
     fprintf(stderr, "Thread1 did not start");
 
-  int t2 = pthread_create(&tid[1],
-      NULL,
-      serve,
-      (void*)&josh_gad);
+  int t2 = pthread_create(&tid[1], NULL, serve, (void*)&josh_gad);
 
   if (t2 == 1)
     fprintf(stderr, "Thread2 did not start");
