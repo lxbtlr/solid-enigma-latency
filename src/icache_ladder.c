@@ -8,15 +8,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <ucontext.h>
 #include <sys/time.h>
+#include <ucontext.h>
 #include <unistd.h> // unix standard apis
 // #include <math.h>
 //
 // make our barrier
 pthread_barrier_t barrier;
 
-#define VERBOSE 0   
+#define VERBOSE 0
 #define SERVE_TALK 0
 #define VOLLEY_TALK 0
 #define SIGHANDLER 1
@@ -44,13 +44,10 @@ extern uint8_t gadget_start[];
 extern uint8_t gadget_entry[];
 extern uint8_t gadget_end[];
 
-//extern uint8_t gadget_patch1[];
-//extern uint8_t gadget_patch2[];
+// extern uint8_t gadget_patch1[];
+// extern uint8_t gadget_patch2[];
 
-size_t size_gadget()
-{
-  return (uintptr_t)gadget_end - (uintptr_t)gadget_start;
-}
+size_t size_gadget() { return (uintptr_t)gadget_end - (uintptr_t)gadget_start; }
 size_t entry_offset()
 {
   return (uintptr_t)gadget_entry - (uintptr_t)gadget_start;
@@ -60,6 +57,7 @@ typedef struct {
   void (*backup)(void);
   uint64_t* t1;
   uint64_t* t2;
+  FILE* F;
 } __attribute__((packed)) __attribute__((aligned(PAGE_SIZE))) gadget_t;
 
 gadget_t ladder_gadget;
@@ -69,7 +67,6 @@ gadget_t ladder_gadget;
 // 2. test with a copy
 // 3. reset the copy with a new copy of the original
 // 4. repeat 2-3
-
 
 void hex_dump(const void* addr, size_t length, size_t target)
 {
@@ -95,8 +92,7 @@ void hex_dump(const void* addr, size_t length, size_t target)
   }
 }
 
-
-#define OFFSET(val) (uintptr_t) val - (uintptr_t)gadget_start
+#define OFFSET(val) (uintptr_t)val - (uintptr_t)gadget_start
 // FIX: There ~MAY~ still be a race condition
 // look at gdb thread blocking detach on fork and follow ~fork child
 void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
@@ -104,14 +100,15 @@ void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
   // gadget must already be alloc'd by here
   uint8_t* code = (uint8_t*)gadget->code;
   uint8_t* backup = (uint8_t*)gadget->backup;
-  
+#if VERBOSE
   fprintf(stderr, DBG "code\t" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, code);
   hex_dump(code, size_gadget(), 0);
   fprintf(stderr, DBG "backup\t" COLOR_BOLD_YELLOW "%p\n" COLOR_RESET, backup);
   hex_dump(backup, size_gadget(), 0);
-  // Hard copy backup to code 
+  // Hard copy backup to code
+#endif
   memcpy(gadget->code, gadget->backup, size_gadget());
-  
+
   gadget->t1 = t1;
   gadget->t2 = t2;
   // memcpy(gadget->patch1, code + OFFSET(gadget_patch1), PATCH_SIZE);
@@ -127,16 +124,14 @@ void gadget_rst(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
 #endif
 }
 
-void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2)
+void gadget_init(gadget_t* gadget, uint64_t* t1, uint64_t* t2, FILE* f)
 {
 
   // memcpy(garbage, gadget_start, size_gadget());
-  gadget->code = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_EXEC | PROT_WRITE,
+  gadget->code = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_EXEC | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS, // check this later
       0, 0);
-  gadget->backup = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_EXEC | PROT_WRITE,
+  gadget->backup = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_EXEC | PROT_WRITE,
       MAP_SHARED | MAP_ANONYMOUS, // check this later
       0, 0);
 
@@ -155,12 +150,12 @@ void gadget_dest(gadget_t* gadget)
   }
 }
 
-uint64_t alaska_timestamp() {
+uint64_t alaska_timestamp()
+{
   struct timespec spec;
   clock_gettime(1, &spec);
   return spec.tv_sec * (1000 * 1000 * 1000) + spec.tv_nsec;
 }
-
 
 #ifdef __x86_64__
 
@@ -168,22 +163,22 @@ uint64_t alaska_timestamp() {
   do {                                        \
     uint64_t tsc;                             \
     uint32_t a, d;                            \
-	asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
+    asm volatile("rdtsc" : "=a"(a), "=d"(d)); \
     *(uint32_t*)&(tsc) = a;                   \
     *(uint32_t*)(((uchar_t*)&tsc) + 4) = d;   \
     val = tsc;                                \
   } while (0)
-#else 
+#else
 
-#define rdtscll(val) val = alaska_timestamp()  
+#define rdtscll(val) val = alaska_timestamp()
 #endif
-
 
 #if !SIGHANDLER
 static sigjmp_buf jump_buf;
 void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 {
-  fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET, info->si_addr);
+  fprintf(stderr, COLOR_BOLD_RED "Caught SIGILL at address %p\n" COLOR_RESET,
+      info->si_addr);
   uint8_t* code = (uint8_t*)info->si_addr;
   for (int i = 0; i < 8; i++) {
     fprintf(stderr, "%02x ", code[i]);
@@ -203,9 +198,6 @@ void sigill_handler(int sig, siginfo_t* info, void* ucontext)
 #endif
 }
 #endif
-
-
-
 
 void* serve(void* arg)
 {
@@ -233,14 +225,14 @@ void* serve(void* arg)
     exit(-1);
   }
 
-  // printf("%lu\n", offset);
-  // hex_dump(ladder_gadget.code, 0x100, offset);
-  //(void (*)(void))
-//#if VERBOSE
+// printf("%lu\n", offset);
+// hex_dump(ladder_gadget.code, 0x100, offset);
+//(void (*)(void))
+#if VERBOSE
   fprintf(stderr, DBG "gadget_start+off:\t0x%016x\n", gadget_start + offset);
   fprintf(stderr, DBG "gadget_code+off:\t0x%016x\n", gadget->code + offset);
   fprintf(stderr, DBG ALERT("MYID") ":%lx\n", myid);
-//#endif
+#endif
   for (uint64_t i = 0; i < ntrials; i++) {
 
 #if VERBOSE
@@ -250,21 +242,22 @@ void* serve(void* arg)
     rdtscll(start);
     (gadget->code + offset)();
     rdtscll(stop);
-    rec_times[i] = (uint64_t)(stop - start)/3;
-    
+    rec_times[i] = (uint64_t)(stop - start) / 3;
+
 #if SERVE_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("post test\n"));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("post test\n"));
     hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
 #endif
-    
+
     // NOTE: NEED TO RESET GADGET
     gadget_rst(&ladder_gadget, ladder_gadget.t1, ladder_gadget.t2);
     pthread_barrier_wait(&barrier);
-    
 
 #if SERVE_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("fixed\n"));
-    //hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "serve:" COLOR_RESET ALERT("fixed\n"));
+    // hex_dump(gadget->code, 0x100, OFFSET(gadget_patch1));
 #endif
     // printf("%lu,%lu,%lu,%lu\n", *gadget->t1, *gadget->t2, i, stop - start);
   }
@@ -289,7 +282,6 @@ void* volley(void* arg)
   // add barrier here
   for (uint64_t i = 0; i < ntrials; i++, volley_counter++) {
 
-
 #if VERBOSE
     printf("volley:" COLOR_BOLD_RED "%i\n" COLOR_RESET, i);
 #endif
@@ -297,16 +289,18 @@ void* volley(void* arg)
     gadget->code();
 
 #if VOLLEY_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
-    hex_dump(gadget->code, 0x100, 0);//OFFSET(gadget_patch2));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("post test\n"));
+    hex_dump(gadget->code, 0x100, 0); // OFFSET(gadget_patch2));
 #endif
 #if VOLLEY_TALK
-    fprintf(stderr, DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("fixed\n"));
-    hex_dump(gadget->code, 0x100, 0);//OFFSET(gadget_patch2));
+    fprintf(stderr,
+        DBG COLOR_BOLD_YELLOW "volley:" COLOR_RESET ALERT("fixed\n"));
+    hex_dump(gadget->code, 0x100, 0); // OFFSET(gadget_patch2));
 #endif
-    //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2, PATCH_SIZE);
+    //   memcpy(gadget->code + OFFSET(gadget_patch2), gadget->patch2,
+    //   PATCH_SIZE);
     //  printf("volley: trial  %lu\n", i);
-    
 
     pthread_barrier_wait(&barrier);
     // NOTE: NEED TO RESET GADGET
@@ -327,7 +321,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   // NOTE: Beginning of first loop (through all threads)
   uint64_t cthread_1, cthread_2;
 
-  gadget_init(&ladder_gadget, &cthread_1, &cthread_2);
+  gadget_init(&ladder_gadget, &cthread_1, &cthread_2, fd);
   for (cthread_2 = beginning; cthread_2 <= ending; cthread_2++) {
 
     for (cthread_1 = beginning; cthread_1 <= ending; cthread_1++) {
@@ -337,18 +331,12 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       // ladder_gadget.t1 = &cthread_1;
       // ladder_gadget.t2 = &cthread_2;
       gadget_rst(&ladder_gadget, &cthread_1, &cthread_2);
-      int t1 = pthread_create(&tid[0],
-          NULL,
-          volley,
-          (void*)&ladder_gadget);
+      int t1 = pthread_create(&tid[0], NULL, volley, (void*)&ladder_gadget);
 
       if (t1 == 1)
         fprintf(stderr, "Thread1 did not start");
 
-      int t2 = pthread_create(&tid[1],
-          NULL,
-          serve,
-          (void*)&ladder_gadget);
+      int t2 = pthread_create(&tid[1], NULL, serve, (void*)&ladder_gadget);
 
       if (t2 == 1)
         fprintf(stderr, "Thread2 did not start");
@@ -370,33 +358,35 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   return;
 }
 
-void cpu2cpu(uint64_t thread1, uint64_t thread2)
+void cpu2cpu(uint64_t thread1, uint64_t thread2, FILE* f)
 {
   // TODO: use the array system in use for pingpong mode
-  gadget_init(&ladder_gadget, &thread1, &thread2);
+  // TODO: fix file descriptors being passed around
+  gadget_init(&ladder_gadget, &thread1, &thread2, f);
 
   pthread_t* tid;
   tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
 
-  int t1 = pthread_create(&tid[0],
-      NULL,
-      volley,
-      (void*)&ladder_gadget);
+  int t1 = pthread_create(&tid[0], NULL, volley, (void*)&ladder_gadget);
 
   if (t1 == 1)
     fprintf(stderr, "Thread1 did not start");
 
-  int t2 = pthread_create(&tid[1],
-      NULL,
-      serve,
-      (void*)&ladder_gadget);
+  int t2 = pthread_create(&tid[1], NULL, serve, (void*)&ladder_gadget);
 
   if (t2 == 1)
     fprintf(stderr, "Thread2 did not start");
 
-  pthread_join(tid[0], NULL);
-  pthread_join(tid[1], NULL);
+  void* result_ptr;
 
+  pthread_join(tid[0], NULL);
+  pthread_join(tid[1], &result_ptr);
+
+  uint64_t* results = (uint64_t*)result_ptr;
+  for (uint64_t j = 0; j < ntrials; j++) {
+    fprintf(f, "%lu,%lu,%lu,%lu\n", thread1, thread2, j, results[j]);
+  }
+  free(results);
   // destroy barrier once done
   pthread_barrier_destroy(&barrier);
 }
@@ -431,7 +421,7 @@ int main(int argc, char* argv[])
   fprintf(f, "thread_1,thread_2,iter,time\n");
   switch (mode) {
   case 0:
-    cpu2cpu(thread_1, thread_2);
+    cpu2cpu(thread_1, thread_2, f);
     break;
   case 1:
 

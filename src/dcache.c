@@ -14,9 +14,10 @@
  * -
  */
 
-#define VERBOSE 1
+#define VERBOSE 0
 #define PAGE_SIZE 0x1000
-#define NUM_TRIALS 1000
+#define NUM_TRIALS 10000
+
 uint64_t ntrials = NUM_TRIALS;
 
 #define INT_MAX_TEMP 0x7fffffff
@@ -121,6 +122,7 @@ typedef struct {
   uint64_t player2;
   uint64_t* first;
   uint64_t* second;
+  FILE* F;
 } __attribute__((packed)) __attribute__((aligned(PAGE_SIZE))) passes;
 
 // NOTE: FIX ALL THE UNNECESSARY IO
@@ -334,6 +336,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
     .player2 = cthread_2,
     .first = (uint64_t*)serve,
     .second = (uint64_t*)volley,
+    .F = fd,
   };
   for (cthread_2 = beginning; cthread_2 <= ending; cthread_2++) {
 
@@ -391,7 +394,7 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   return;
 }
 
-void pair(uint64_t cpu1, uint64_t cpu2)
+void pair(uint64_t cpu1, uint64_t cpu2, FILE* f)
 {
 
   pthread_t* tid;
@@ -410,6 +413,7 @@ void pair(uint64_t cpu1, uint64_t cpu2)
     .player2 = cpu2,
     .first = (uint64_t*)serve,
     .second = (uint64_t*)volley,
+    .F = f,
   };
 
   tid = (pthread_t*)malloc(sizeof(pthread_t) * NUM_THREADS); // magic number justified,
@@ -432,8 +436,16 @@ void pair(uint64_t cpu1, uint64_t cpu2)
   if (start_condition != 0) {
     printf("[INFO] PING started incorrect\n");
   }
+  void* result_ptr;
+
   pthread_join(tid[0], NULL);
-  pthread_join(tid[1], NULL);
+  pthread_join(tid[1], &result_ptr);
+
+  uint64_t* results = (uint64_t*)result_ptr;
+  for (uint64_t j = 0; j < ntrials; j++) {
+    fprintf(f, "%lu,%lu,%lu,%lu\n", cpu1, cpu2, j, results[j]);
+  }
+  free(results);
 
   munmap(serve, PAGE_SIZE);
   munmap(volley, PAGE_SIZE);
@@ -503,7 +515,7 @@ static void* amort_t1_wrap(void* p)
   rdtscll(stop);
 
   uint64_t total = stop - start;
-  fprintf(a->F, "%ld runs in %zu cycles. %f average\n", count, total,
+  fprintf(a->F, "%li, %li, %i, %f\n", a->tid_1, a->tid_2, NUM_TRIALS,
       total / (float)count);
 
   return NULL;
@@ -619,7 +631,7 @@ int main(int argc, char* argv[])
 #if VERBOSE
     fprintf(stderr, DBG "starting pair \n");
 #endif
-    pair(t1, t2);
+    pair(t1, t2, f);
     break;
   }
   case 1: {
