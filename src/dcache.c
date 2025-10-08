@@ -51,6 +51,7 @@ uint64_t alaska_timestamp()
       :                                         \
       :                                         \
       : "rax", "rdx", "rcx", "memory")
+
 #define rdtscll(val)                          \
   do {                                        \
     uint64_t tsc;                             \
@@ -147,7 +148,7 @@ void* arm_ping(void* _g)
   uint64_t start;
   uint64_t stop;
   // should start the clock and write to data in memory
-  uint64_t runs = 0;
+  // uint64_t runs = 0;
 
   uint64_t state;
   for (uint64_t trial = 0; trial < NUM_TRIALS; trial++) {
@@ -328,8 +329,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 
   long start_condition;
 
-  uint64_t cthread_1 = 0;
-  uint64_t cthread_2 = 0;
+  uint64_t cthread_1 = beginning;
+  uint64_t cthread_2 = beginning;
 
   passes game = {
     .player1 = cthread_1,
@@ -446,7 +447,6 @@ void pair(uint64_t cpu1, uint64_t cpu2, FILE* f)
     fprintf(f, "%lu,%lu,%lu,%lu\n", cpu1, cpu2, j, results[j]);
   }
   free(results);
-
   munmap(serve, PAGE_SIZE);
   munmap(volley, PAGE_SIZE);
   return;
@@ -631,6 +631,8 @@ int main(int argc, char* argv[])
 #if VERBOSE
     fprintf(stderr, DBG "starting pair \n");
 #endif
+
+    fprintf(stderr, DBG "starting pair\n");
     pair(t1, t2, f);
     break;
   }
