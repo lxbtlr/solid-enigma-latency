@@ -14,7 +14,7 @@
  * -
  */
 
-#define VERBOSE 0
+#define VERBOSE 1
 #define PAGE_SIZE 0x1000
 #define NUM_TRIALS 1000
 uint64_t ntrials = NUM_TRIALS;
@@ -45,7 +45,11 @@ uint64_t alaska_timestamp()
 
 #ifdef __x86_64__
 
-#define FORCE_SERIAL __asm__ __volatile__("lfence; rdtscp; lfence" : : : "rax", "rdx", "rcx", "memory")
+#define FORCE_SERIAL                            \
+  __asm__ __volatile__("lfence; rdtscp; lfence" \
+      :                                         \
+      :                                         \
+      : "rax", "rdx", "rcx", "memory")
 #define rdtscll(val)                          \
   do {                                        \
     uint64_t tsc;                             \
@@ -61,8 +65,10 @@ uint64_t alaska_timestamp()
 #define rdtscll(val) val = alaska_timestamp()
 #endif
 
-#define MIN(x, y) (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
-#define MAX(x, y) (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
+#define MIN(x, y) \
+  (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
+#define MAX(x, y) \
+  (((uint64_t)x) > ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
 
 pthread_barrier_t barrier;
 
@@ -86,19 +92,16 @@ void memrst(sharedm* data)
   memset(data->read_addr, 0, PAGE_SIZE);
 }
 
-void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1, const uint64_t thread2)
+void mk_sharedms(sharedm* t1, sharedm* t2, const uint64_t thread1,
+    const uint64_t thread2)
 {
-  void* serve = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* serve = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
 
   memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* volley = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
   memset(volley, 0, PAGE_SIZE);
 
   // t1->tid = tid[thread1];
@@ -150,7 +153,8 @@ void* arm_ping(void* _g)
 
     asm volatile("dmb ish;"
                  "dsb ish;"
-                 "isb sy;" :::);
+                 "isb sy;" ::
+                     :);
     rdtscll(start);
 #ifdef AMORTIZED_RUNS
     for (uint64_t y = 0; y < AMORTIZED_RUNS; y++) {
@@ -232,7 +236,6 @@ void* ping2(void* _g)
   uint64_t start;
   uint64_t stop;
   // should start the clock and write to data in memory
-  uint64_t runs = 0;
   for (uint64_t trial = 0; trial < ntrials; trial++) {
 
 #if VERBOSE
@@ -248,8 +251,6 @@ void* ping2(void* _g)
       // sit and wait
     }
     rdtscll(stop);
-    // NOTE: we no longer print each iter
-    //  printf("%lu,%lu,%lu,%i\n", g->player1, g->player2, trial, time);
     *g->first = 0; // Reset
     rec_times[trial] = (uint64_t)stop - start;
 #ifdef __x86_64__
@@ -289,7 +290,8 @@ void* pong2(void* _g)
     fprintf(stderr, "[INFO] Exiting thread %lu\n", g->player2);
 #endif
 
-    while (*g->first != 0) { }
+    while (*g->first != 0) {
+    }
     *g->second = 0; // Reset
 
 #if VERBOSE
@@ -310,17 +312,13 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
   uint64_t beginning = thread1;
   uint64_t ending = thread2;
 
-  void* serve = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* serve = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
 
   memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* volley = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
   memset(volley, 0, PAGE_SIZE);
 
   pthread_t* tid;
@@ -328,8 +326,8 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
 
   long start_condition;
 
-  uint64_t cthread_1;
-  uint64_t cthread_2;
+  uint64_t cthread_1 = 0;
+  uint64_t cthread_2 = 0;
 
   passes game = {
     .player1 = cthread_1,
@@ -348,38 +346,26 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
       fprintf(stderr, "starting thread1\n");
 #endif
 #ifdef __x86_64__
-      start_condition = pthread_create(&tid[0],
-          NULL,
-          pong2,
-          (void*)&game);
+      start_condition = pthread_create(&tid[0], NULL, pong2, (void*)&game);
       if (start_condition != 0) {
         fprintf(stderr, DBG "PONG Did not start correct\n");
       }
 
       // player 2
-      start_condition = pthread_create(&tid[1],
-          NULL,
-          ping2,
-          (void*)&game);
+      start_condition = pthread_create(&tid[1], NULL, ping2, (void*)&game);
 
       if (start_condition != 0) {
         fprintf(stderr, DBG "PING Did not start correct\n");
       }
 #else
 
-      start_condition = pthread_create(&tid[0],
-          NULL,
-          arm_pong,
-          (void*)&game);
+      start_condition = pthread_create(&tid[0], NULL, arm_pong, (void*)&game);
       if (start_condition != 0) {
         fprintf(stderr, DBG "PONG Did not start correct\n");
       }
 
       // player 2
-      start_condition = pthread_create(&tid[1],
-          NULL,
-          arm_ping,
-          (void*)&game);
+      start_condition = pthread_create(&tid[1], NULL, arm_ping, (void*)&game);
 
       if (start_condition != 0) {
         fprintf(stderr, DBG "PING Did not start correct\n");
@@ -410,17 +396,13 @@ void pair(uint64_t cpu1, uint64_t cpu2)
 
   pthread_t* tid;
 
-  void* serve = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* serve = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
 
   memset(serve, 0, PAGE_SIZE);
 
-  void* volley = mmap(NULL, PAGE_SIZE,
-      PROT_READ | PROT_WRITE,
-      MAP_SHARED | MAP_ANONYMOUS,
-      0, 0);
+  void* volley = mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE,
+      MAP_SHARED | MAP_ANONYMOUS, 0, 0);
   memset(volley, 0, PAGE_SIZE);
 
   passes game = {
@@ -438,20 +420,14 @@ void pair(uint64_t cpu1, uint64_t cpu2)
   printf("Start threads\n");
 #endif
   // player 1
-  start_condition = pthread_create(&tid[0],
-      NULL,
-      pong2,
-      (void*)&game);
+  start_condition = pthread_create(&tid[0], NULL, pong2, (void*)&game);
 
   if (start_condition != 0) {
     printf("[INFO] PONG started incorrect\n");
   }
 
   // player 2
-  start_condition = pthread_create(&tid[1],
-      NULL,
-      ping2,
-      (void*)&game);
+  start_condition = pthread_create(&tid[1], NULL, ping2, (void*)&game);
 
   if (start_condition != 0) {
     printf("[INFO] PING started incorrect\n");
@@ -464,12 +440,163 @@ void pair(uint64_t cpu1, uint64_t cpu2)
   return;
 }
 
+#define WAIT(P, V)      \
+  while (*(P) != (V)) { \
+  }
+
+typedef volatile long slot_t;
+
+void amort_t1(slot_t* A, slot_t* B, long C)
+{
+  do {
+    WAIT(A, C);
+    C--;
+    *B = C;
+  } while (C > 0);
+}
+
+void amort_t2(slot_t* A, slot_t* B, long C)
+{
+  do {
+    *A = C;
+    C--;
+    WAIT(B, C);
+  } while (C > 0);
+}
+
+struct Amort_Args {
+  long* A;
+  long* B;
+  long C;
+  uint64_t tid_1;
+  uint64_t tid_2;
+  FILE* F;
+};
+
+#define SET_AFF(ID)                                    \
+  do {                                                 \
+    cpu_set_t set;                                     \
+    CPU_ZERO(&set);                                    \
+    CPU_SET(ID, &set);                                 \
+    if (sched_setaffinity(0, sizeof(set), &set) < 0) { \
+      perror("Can't setaffinity");                     \
+      exit(-1);                                        \
+    }                                                  \
+                                                       \
+  } while (0)
+
+static void* amort_t1_wrap(void* p)
+{
+  struct Amort_Args* a = (struct Amort_Args*)p;
+  long count = a->C;
+
+  // cpu_set_t set;
+  // CPU_ZERO(&set);
+  // CPU_SET(a->tid_1, &set);
+
+  SET_AFF(a->tid_1);
+
+  // uint64_t start = rdtscp();
+  uint64_t start, stop = 0;
+  rdtscll(start);
+  amort_t1(a->A, a->B, a->C);
+  rdtscll(stop);
+
+  uint64_t total = stop - start;
+  fprintf(a->F, "%ld runs in %zu cycles. %f average\n", count, total,
+      total / (float)count);
+
+  return NULL;
+}
+
+static void* amort_t2_wrap(void* p)
+{
+  struct Amort_Args* a = (struct Amort_Args*)p;
+  SET_AFF(a->tid_2);
+  amort_t2(a->A, a->B, a->C);
+  return NULL;
+}
+
+#define AMORTIZED_RUNS 100000
+int amortized_pair(int t1, int t2, FILE* f)
+{
+  // force separate locations in mem
+  long A[500];
+  long B[500];
+  // set values
+  A[0] = -1;
+  B[0] = -1;
+
+  for (int i = 0; i < NUM_TRIALS; i++) {
+    struct Amort_Args args = {
+      .A = A, .B = B, .C = AMORTIZED_RUNS, .tid_1 = t1, .tid_2 = t2, .F = f
+    };
+
+    pthread_t th1, th2;
+    if (pthread_create(&th1, NULL, amort_t1_wrap, &args) != 0) {
+      perror("pthread_create t1");
+      return 1;
+    }
+    if (pthread_create(&th2, NULL, amort_t2_wrap, &args) != 0) {
+      perror("pthread_create t2");
+      return 1;
+    }
+
+    pthread_join(th1, NULL);
+    pthread_join(th2, NULL);
+  }
+
+  return 0;
+}
+
+int amortized_pingpong(uint64_t beginning, uint64_t end, FILE* f)
+{
+
+  // force separate locations in mem
+  long A[500];
+  long B[500];
+  // set values
+  A[0] = -1;
+  B[0] = -1;
+  for (uint64_t thread1 = beginning; thread1 < end; thread1++) {
+    for (uint64_t thread2 = beginning; thread2 < end; thread2++) {
+      if (thread1 == thread2) {
+        continue;
+      }
+
+      for (int i = 0; i < NUM_TRIALS; i++) {
+        struct Amort_Args args = { .A = A,
+          .B = B,
+          .C = AMORTIZED_RUNS,
+          .tid_1 = thread1,
+          .tid_2 = thread2,
+          .F = f };
+
+        pthread_t th1, th2;
+        if (pthread_create(&th1, NULL, amort_t1_wrap, &args) != 0) {
+          perror("pthread_create t1");
+          return 1;
+        }
+        if (pthread_create(&th2, NULL, amort_t2_wrap, &args) != 0) {
+          perror("pthread_create t2");
+          return 1;
+        }
+
+        pthread_join(th1, NULL);
+        pthread_join(th2, NULL);
+      }
+    }
+  }
+
+  return 0;
+}
+
 int main(int argc, char* argv[])
 {
 
   if (argc != 4) {
     // TODO: bake modes into this (thread pairs vs thread sweeps)
-    printf("usage: pingpong thread_1 thread_2 Mode\n");
+    printf("usage: dcache_late thread_1 thread_2 Mode\n");
     exit(-1);
   }
   long t1 = (uint64_t)atol(argv[1]);   // thread 1
@@ -490,10 +617,8 @@ int main(int argc, char* argv[])
   switch (mode) {
   case 0: {
 #if VERBOSE
-    printf("pair mode\n");
+    fprintf(stderr, DBG "starting pair \n");
 #endif
-
-    fprintf(stderr, DBG "starting pair\n");
     pair(t1, t2);
     break;
   }
@@ -504,8 +629,22 @@ int main(int argc, char* argv[])
     pingpong(t1, t2, f);
     break;
   }
+  case 2: {
+#if VERBOSE
+    fprintf(stderr, DBG "AMORTIZED: starting pair \n");
+#endif
+    amortized_pair(t1, t2, f);
+    break;
+  }
+  case 3: {
+#if VERBOSE
+    fprintf(stderr, DBG "AMORTIZED: starting pingpong \n");
+#endif
+    amortized_pingpong(t1, t2, f);
+    break;
+  }
   default: {
-    fprintf(stderr, "usage: pingpong thread_1 thread_2 Avoid_HT Mode\n");
+    fprintf(stderr, "usage: pingpong thread_1 thread_2 Mode\n");
     fprintf(stderr, "\t\t\t\t\t^^Mode not Mapped\n");
   }
   }
