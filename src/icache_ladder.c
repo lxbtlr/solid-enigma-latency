@@ -16,7 +16,7 @@
 // make our barrier
 pthread_barrier_t barrier;
 
-#define VERBOSE 0
+#define VERBOSE 1
 #define SERVE_TALK 0
 #define VOLLEY_TALK 0
 #define SIGHANDLER 1
