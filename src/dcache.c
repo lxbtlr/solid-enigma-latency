@@ -16,7 +16,7 @@
 
 #define VERBOSE 0
 #define PAGE_SIZE 0x1000
-#define NUM_TRIALS 10000
+#define NUM_TRIALS 1000
 
 uint64_t ntrials = NUM_TRIALS;
 
@@ -66,6 +66,20 @@ uint64_t alaska_timestamp()
 #define AMORTIZED_RUNS 100
 #define rdtscll(val) val = alaska_timestamp()
 #endif
+
+#define SET_AFF(ID)                                    \
+  do {                                                 \
+    cpu_set_t set;                                     \
+    CPU_ZERO(&set);                                    \
+    CPU_SET(ID, &set);                                 \
+    if (sched_setaffinity(0, sizeof(set), &set) < 0) { \
+      perror("Can't setaffinity");                     \
+      exit(-1);                                        \
+    }                                                  \
+                                                       \
+  } while (0)
+
+#define AMORTIZED_RUNS 1000
 
 #define MIN(x, y) \
   (((uint64_t)x) < ((uint64_t)y) ? ((uint64_t)x) : ((uint64_t)y))
@@ -485,18 +499,6 @@ struct Amort_Args {
   FILE* F;
 };
 
-#define SET_AFF(ID)                                    \
-  do {                                                 \
-    cpu_set_t set;                                     \
-    CPU_ZERO(&set);                                    \
-    CPU_SET(ID, &set);                                 \
-    if (sched_setaffinity(0, sizeof(set), &set) < 0) { \
-      perror("Can't setaffinity");                     \
-      exit(-1);                                        \
-    }                                                  \
-                                                       \
-  } while (0)
-
 static void* amort_t1_wrap(void* p)
 {
   struct Amort_Args* a = (struct Amort_Args*)p;
@@ -529,7 +531,6 @@ static void* amort_t2_wrap(void* p)
   return NULL;
 }
 
-#define AMORTIZED_RUNS 100000
 int amortized_pair(int t1, int t2, FILE* f)
 {
   // force separate locations in mem
