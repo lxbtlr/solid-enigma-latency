@@ -3,7 +3,7 @@
 # Compiler and flags
 CC := gcc
 AS := gcc              # Use gcc for preprocessing .S files
-CFLAGS := -Wall -Wextra -O0 -g -lpthread
+CFLAGS := -Wall -Wextra -O3 -g -lpthread
 
 # Add the gadgets directory to the search path for source files
 VPATH = gadgets
