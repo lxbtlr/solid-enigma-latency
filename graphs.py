@@ -30,6 +30,8 @@ parser.add_argument("title",help="graph title",default=None)
 parser.add_argument("-g","--graph",help="graph type [heatmap, kmeans, dendrites]")
 parser.add_argument("-n","--numa",help="# numa nodes (default=1)", default=1)
 parser.add_argument("-ht","--hyperthreads",help="# hyperthreads per core (default=2)", default=2)
+parser.add_argument("-vm","--vmax",help="# heatmap vertical max (colorbar)", default=800)
+parser.add_argument("-a","--amortize",help="# number of trials that are packed into each measurement", default=None,type=int)
 #parser.add_argument("")
 
 
@@ -101,7 +103,6 @@ def heatmap(input_data, title, ht=2):
     _data = input_data.pivot(index=input_data.columns[0],
                              columns=input_data.columns[1],
                              values=input_data.columns[2]).fillna(0)
-
     num_threads = input_data["thread_2"].max()+1
     ticks_offset = 1
     
@@ -121,7 +122,7 @@ def heatmap(input_data, title, ht=2):
     print(f"Numa={args.numa}\tInterval={interval}")
         
     g = seaborn.heatmap(_data, ax=ax,fmt=".1f", xticklabels=True, yticklabels=True,
-                        square=True, vmax=800)
+                        square=True, vmax=args.vmax)
                         #annot=numpy.round(_data, 1),
                         #annot_kws={"size": 4, "color": "white"})
     g.set_xticklabels([i if c%ticks_offset==0 else " " for c,i in enumerate(ax.get_xticklabels()) ], rotation=0)
@@ -191,6 +192,11 @@ if __name__ == "__main__":
     data = rf(args.filename)
     avgs_data = p2p_means(data)
     mins_data = p2p_mins(data)
+    if args.amortize != None:
+        print(avgs_data.columns)
+        print(avgs_data['time'].div(args.amortize))
+        avgs_data['time'] = avgs_data['time'].div(args.amortize)
+        mins_data['time'] = mins_data['time'].div(args.amortize)
 
     max_thread = avgs_data["thread_2"].max()
     # If args numa is specified
@@ -205,6 +211,9 @@ if __name__ == "__main__":
 
     print("avgs")
     avgs_data = logical_to_physical(avgs_data,sockets,cores)
+    print(avgs_data)
+    print(avgs_data.columns)
+    print(avgs_data['time'].div(10))
     print("mins")
     mins_data = logical_to_physical(mins_data,sockets,cores)
 
