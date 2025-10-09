@@ -327,6 +327,10 @@ void pingpong(uint64_t thread1, uint64_t thread2, FILE* fd)
     for (cthread_1 = beginning; cthread_1 <= ending; cthread_1++) {
       if (cthread_2 == cthread_1)
         continue;
+    #if VERBOSE
+        printf("RUNNING: %lu,\t%lu \r", cthread_1,cthread_2);
+        fflush(stdout);
+    #endif
       // FIXME: option 2
       // ladder_gadget.t1 = &cthread_1;
       // ladder_gadget.t2 = &cthread_2;
