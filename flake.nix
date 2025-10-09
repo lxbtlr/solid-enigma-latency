@@ -45,6 +45,7 @@
             vcpkg-tool
             poppler_utils
             valgrind
+            gnuplot
             #]{ pkgs = nixpkgs.legacyPackages.${system}; };
             ];
         buildInputs = [pkgs.clang-tools];
@@ -52,7 +53,9 @@
           export YEL='\033[1;33m'
           export RED='\033[0;31m'
           export NC='\033[0m'
+          cd src/
           make clean -s
+          cd -
           PATH="${pkgs.clang-tools}/bin:$PATH"
           echo -e "\t\t#$YEL Now in ${name} Shell$NC #"
           git status -s
