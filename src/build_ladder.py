@@ -63,6 +63,7 @@ rail_1:
     jmp footer
 
 .global gadget_entry
+.align 64
 gadget_entry:
     MOVW $0x00eb,rail_1_0(%rip)     # Stop rail_1 from jumping in place (start the pingpong)
 
