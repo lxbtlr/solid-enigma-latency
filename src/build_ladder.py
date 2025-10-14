@@ -60,10 +60,10 @@ rail_1:
 
     # Add rail_1 bottom
     asm_code += """rail_1_bottom:
-    jmp footer
+    ret
 
 .global gadget_entry
-.align 64
+//.align 64
 gadget_entry:
     MOVW $0x00eb,rail_1_0(%rip)     # Stop rail_1 from jumping in place (start the pingpong)
 
@@ -81,12 +81,14 @@ rail_2:
 
         asm_code += f"""rail_2_{i}:
     jmp .                           // Jump in place (wait for rail_1 to unblock)
-    MOVW $0x00eb,{next_target}(%rip)   # Stop rail_1 from jumping in place (unblock rail_1)
+"""
+        if next_target != "rail_1_bottom":
+            asm_code += f"""MOVW $0x00eb,{next_target}(%rip)   # Stop rail_1 from jumping in place (unblock rail_1)
 """
 
     # Add rail_2 bottom and footer
     asm_code += """rail_2_bottom:
-    jmp footer
+    ret
 
 footer:
     ret
